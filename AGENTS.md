@@ -93,7 +93,13 @@
 ## Code conventions
 
 - Match existing project style and libraries. Check config files (`package.json`, etc.) for build, lint, and test commands before assuming any.
-- The PRD does not specify a language or framework. Confirm the stack with the user before scaffolding, then record it in this file.
+- Confirmed stack (do not change without asking the user):
+  - TypeScript (strict) on the current Node.js Active LTS.
+  - Client: Vite + vanilla TypeScript + HTML canvas. No UI framework.
+  - Server: a single Node web service that serves the built client and, from Milestone 2, WebSockets via `ws` on the same origin.
+  - Tests: Vitest. Keep rule and sensor logic in pure modules.
+  - Local phone testing: Vite over HTTPS on the LAN via `@vitejs/plugin-basic-ssl`.
+  - Hosting: Render web service, configured in `render.yaml`. Free instances spin down when idle and lose in-memory rooms; use a paid instance for demo day.
 - Pin dependency versions exactly. Prefer well-known, maintained packages and flag unusual package names.
 - Never hardcode secrets. Do not commit `.env` files.
 - Never use native app, 3D, or database dependencies for the MVP.
@@ -106,7 +112,7 @@ Planning decision recorded October 24, 2026, following the request to resolve D1
 - Client: TypeScript, Vite, native DOM controls, plain CSS, and Canvas 2D. Use browser motion APIs and the native browser WebSocket client.
 - Server: Node.js 24 LTS, Express for HTTP/static assets, and `ws` for WebSockets. One process owns the in-memory rooms and authoritative simulation.
 - Tooling: one npm package and lockfile; Vite client builds, TypeScript type checking/server compilation, ESLint with typescript-eslint, and Vitest. Pin compatible exact Node/package versions during scaffolding; no packages are installed yet.
-- M1 deployment: Render Static Site over HTTPS for the sensor proof. Add no game server before the physical-device gate passes.
+- M1 deployment: one Render Web Service configured by render.yaml serves the built sensor-test client and /healthz over HTTPS. No game logic or WebSockets before the physical-device gate passes.
 - M2 onward: one paid Render Web Service serves client assets and WSS on one origin. Use one instance and one Node process, with no horizontal autoscaling or clustering. Restart/redeploy recovery must follow PRD Section 8.
 - Preserve the PRD's in-memory-only architecture. Do not add a database, Redis, a UI framework, or a separate production frontend host as part of this decision.
 

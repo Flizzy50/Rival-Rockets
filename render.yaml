@@ -1,0 +1,14 @@
+# Render Blueprint. Node's version comes from .node-version.
+# Free is fine for the M1 sensor test (no in-memory rooms yet). From M2, rooms
+# live in process memory and free instances spin down when idle, so switch to
+# a paid plan before demo day.
+services:
+  - type: web
+    name: rival-rockets
+    runtime: node
+    plan: free
+    # Dev dependencies (Vite, TypeScript) are needed to build the client and server.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit

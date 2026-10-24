@@ -375,6 +375,14 @@ The voice is short, energetic, and plain: a teammate calling the play, not a man
 | Wrong orientation | "Turn your phone upright" |
 | Pause | "Paused · Nova Engineer reconnecting" |
 | Draw | "DRAW. Rematch?" |
+| **Sensor test (Milestone 1)** | |
+| Sensor test title | "Rival Rockets · Sensor test" |
+| Sensor test role cards | "Pilot test" / "Engineer test" |
+| Calibration restarted | "Hold steady" |
+| Motion check passed | "Motion working" |
+| Calibration done | "Neutral set" |
+| Effect active label | Ability and remaining time, e.g. "BOOST · 1.2s" |
+| Watch placeholder | "Watching starts once rooms are ready. Reload to try motion again." with a **Back** button |
 
 ### 7.10 Accessibility
 
