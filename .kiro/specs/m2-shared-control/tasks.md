@@ -67,7 +67,7 @@ Rules for every task:
   - [ ]* 2.9 Write property test for turning
     - **Property 21: Turning follows steering; neutral keeps heading**
     - **Validates: Requirements 15.3, 15.4, 15.8**
-  - [-] 2.10 Implement `src/shared/rules/seats.ts`
+  - [x] 2.10 Implement `src/shared/rules/seats.ts`
     - `claimSeat`, `releaseSeat`, `switchToWatch`, `removeParticipant`, `canJoinAsPlayer`, `nextHost`, `cometCrewReady`; failures return a reason and no state
     - _Requirements: 2.5, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10, 4.11_
   - [ ]* 2.11 Write property test for seat invariants
@@ -106,7 +106,7 @@ Rules for every task:
   - [ ]* 4.5 Write unit tests for each validator reason
     - One example per `RejectReason` the validator returns; M3 message types; `setup.update` with extra fields
     - _Requirements: 8.1, 12.1, 17.8, 18.2_
-  - [-] 4.6 Implement `server/rate-limit.ts`, `server/origin.ts`, `server/client-ip.ts`
+  - [x] 4.6 Implement `server/rate-limit.ts`, `server/origin.ts`, `server/client-ip.ts`
     - Sliding-window `tryHit`; `buildAllowedOrigins` from `RENDER_EXTERNAL_URL` and `ALLOWED_ORIGINS`; `isOriginAllowed` with the dev same-host rule; `clientIp` with `RR_TRUSTED_PROXY_HOPS` read from the right of `X-Forwarded-For`
     - _Requirements: 2.9, 7.2, 7.3, 7.4, 9.1, 9.2, 9.3, 9.4_
   - [ ]* 4.7 Write property test for window limiters
@@ -176,13 +176,13 @@ Rules for every task:
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 7. Implement the client network layer
-  - [-] 7.1 Implement `src/client/net/session.ts`
+  - [x] 7.1 Implement `src/client/net/session.ts`
     - Session storage of `{ code, seat, token }` for the tab; `buildShareLink` and `parseRoomParam`
     - _Requirements: 3.2, 3.3, 5.5_
   - [ ]* 7.2 Write property test for share links
     - **Property 6: Share links carry only the room code**
     - **Validates: Requirements 3.2, 3.3, 5.5**
-  - [-] 7.3 Implement `src/client/net/latency.ts`
+  - [x] 7.3 Implement `src/client/net/latency.ts`
     - `createLatencyMonitor` with per-kind windows, pending send map with timeout, render delay samples, nearest-rank `percentile`, numeric-only `summary`
     - _Requirements: 22.1, 22.2, 22.3, 22.4, 22.5, 22.6, 22.7_
   - [ ]* 7.4 Write property test for latency samples
@@ -191,7 +191,7 @@ Rules for every task:
   - [ ]* 7.5 Write property test for latency statistics
     - **Property 26: Latency statistics are well ordered**
     - **Validates: Requirements 22.3, 22.7**
-  - [-] 7.6 Implement `src/client/net/interpolate.ts`
+  - [~] 7.6 Implement `src/client/net/interpolate.ts`
     - `interpolatePose`, snapshot buffer, `sampleAt` holding the newest pose, `estimateRenderTime` with the minimum-offset clock estimate and `INTERPOLATION_DELAY_MS`; reset on new `matchId` and on freeze changes
     - _Requirements: 20.1, 20.2, 20.3, 20.4_
   - [ ]* 7.7 Write property test for interpolation bounds
@@ -200,7 +200,7 @@ Rules for every task:
   - [ ]* 7.8 Write property test for render time
     - **Property 23: Render time never runs ahead of received data**
     - **Validates: Requirements 20.1**
-  - [~] 7.9 Implement `src/client/net/socket.ts`
+  - [x] 7.9 Implement `src/client/net/socket.ts`
     - Same-origin `wss:`/`ws:` URL, `requestId` and per-connection `seq`, 1 s heartbeat, 3 s silence detection, reconnect with the stored token, steering throttle at `CLIENT_STEERING_HZ`, latency monitor hooks on send and ack
     - Inject the WebSocket constructor and clock for tests
     - _Requirements: 9.6, 11.1, 11.5, 12.1, 13.3, 22.1_
@@ -209,7 +209,7 @@ Rules for every task:
     - _Requirements: 9.6, 11.1, 11.5_
 
 - [ ] 8. Implement the client screens
-  - [-] 8.1 Add server-authority mode to the motion controller and the crew view reducer
+  - [~] 8.1 Add server-authority mode to the motion controller and the crew view reducer
     - `createMotionController(role, { authority })`: server mode emits `charge-requested`, `activate-requested`, `selection-changed`; add `syncSelection`; local mode unchanged for the M1 sensor test
     - `src/client/crew-view.ts`: pure reducer reconciling local predictions to server crew state
     - _Requirements: 19.2, 19.3, 19.4, 19.5, 19.7_
@@ -225,7 +225,7 @@ Rules for every task:
   - [~] 8.5 Extract the pilot and engineer panels
     - Move the gauge and engineer panel DOM from `pilot-screen.ts` and `engineer-screen.ts` into `ui/pilot-panel.ts` and `ui/engineer-panel.ts`, fed by a view object; the M1 sensor test screens use them unchanged in behavior
     - _Requirements: 19.1, 19.9_
-  - [ ] 8.6 Update `src/client/ui/arena-canvas.ts`
+  - [x] 8.6 Update `src/client/ui/arena-canvas.ts`
     - Draw a `RocketPose` with optional boost and shield state (boost trail, shield outline in `--shield`), keeping the existing `draw` callers working
     - _Requirements: 20.5_
   - [~] 8.7 Implement copy, QR, and the home, join, and error screens
