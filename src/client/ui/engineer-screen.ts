@@ -121,12 +121,12 @@ export function mountEngineerScreen(root: HTMLElement, ctx: AppContext): () => v
 
   function showFailure(text: string): void {
     failReason.textContent = text;
-    failReason.hidden = false;
+    failReason.classList.add('is-visible');
     replayClass(activate, 'nudge');
     ctx.announce('assertive', text);
     clearTimeout(failTimer);
     failTimer = setTimeout(() => {
-      failReason.hidden = true;
+      failReason.classList.remove('is-visible');
     }, FAIL_REASON_MS);
   }
 
@@ -151,7 +151,7 @@ export function mountEngineerScreen(root: HTMLElement, ctx: AppContext): () => v
         );
         break;
       case 'activated':
-        failReason.hidden = true;
+        failReason.classList.remove('is-visible');
         replayClass(activate, 'flash');
         break;
     }
@@ -211,7 +211,6 @@ export function mountEngineerScreen(root: HTMLElement, ctx: AppContext): () => v
     debug.update(snap, nowMs);
   }
 
-  failReason.hidden = true;
   fullTag.hidden = true;
   lockRow.hidden = true;
 

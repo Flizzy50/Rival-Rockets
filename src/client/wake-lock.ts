@@ -49,9 +49,13 @@ export function holdWakeLock(): () => void {
     if (released) return;
     released = true;
     holders -= 1;
-    if (holders > 0 || sentinel === null) return;
-    const lock = sentinel;
-    sentinel = null;
-    void lock.release().catch(() => undefined);
+    // Deferred so a screen change (old screen releases, new one holds in the
+    // same task) keeps the current lock instead of dropping and re-requesting.
+    setTimeout(() => {
+      if (holders > 0 || sentinel === null) return;
+      const lock = sentinel;
+      sentinel = null;
+      void lock.release().catch(() => undefined);
+    }, 0);
   };
 }

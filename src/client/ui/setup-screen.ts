@@ -230,6 +230,12 @@ export function mountSetupScreen(root: HTMLElement, ctx: AppContext): () => void
     // Practice charges do not matter here; draining keeps the queue empty.
     ctx.controller.drainEvents();
     if (phase !== 'check') return;
+    if (ctx.blocked) {
+      // Rotated readings don't count: hold the check and restart the
+      // no-readings window so it can't expire under the overlay.
+      readingsStartMs = nowMs;
+      return;
+    }
     const snap = ctx.controller.snapshot(nowMs);
     const received = snap.checks.orientationReceived && (role === 'pilot' || snap.checks.accelerationSeen);
     if (readingsTimedOut(readingsStartMs, nowMs, received)) {

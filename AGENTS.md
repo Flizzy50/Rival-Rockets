@@ -111,7 +111,7 @@ Planning decision recorded October 24, 2026, following the request to resolve D1
 
 - Client: TypeScript, Vite, native DOM controls, plain CSS, and Canvas 2D. Use browser motion APIs and the native browser WebSocket client.
 - Server: Node.js 24 LTS, Express for HTTP/static assets, and `ws` for WebSockets. One process owns the in-memory rooms and authoritative simulation.
-- Tooling: one npm package and lockfile; Vite client builds, TypeScript type checking/server compilation, ESLint with typescript-eslint, and Vitest. Pin compatible exact Node/package versions during scaffolding; no packages are installed yet.
+- Tooling: one npm package and lockfile; Vite client builds, TypeScript type checking/server compilation, ESLint with typescript-eslint, and Vitest. Exact Node and package versions are pinned in `.node-version` and `package.json`.
 - M1 deployment: one Render Web Service configured by render.yaml serves the built sensor-test client and /healthz over HTTPS. No game logic or WebSockets before the physical-device gate passes.
 - M2 onward: one paid Render Web Service serves client assets and WSS on one origin. Use one instance and one Node process, with no horizontal autoscaling or clustering. Restart/redeploy recovery must follow PRD Section 8.
 - Preserve the PRD's in-memory-only architecture. Do not add a database, Redis, a UI framework, or a separate production frontend host as part of this decision.

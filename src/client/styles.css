@@ -406,7 +406,7 @@ h1:focus {
 .test-screen {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--touch-gap);
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
@@ -422,7 +422,7 @@ h1:focus {
   flex: var(--layout-hud) 0 0%;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--touch-gap);
   min-height: min-content;
 }
 
@@ -451,7 +451,7 @@ h1:focus {
 
 .top-bar-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--touch-gap);
 }
 
 .middle {
@@ -483,7 +483,7 @@ h1:focus {
   flex: var(--layout-panel) 0 0%;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
+  gap: var(--touch-gap);
   min-height: min-content;
   padding: 12px;
   border-radius: 16px;
@@ -503,7 +503,7 @@ h1:focus {
 .tilt-indicator {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--touch-gap);
 }
 
 .gauge-side {
@@ -603,7 +603,7 @@ h1:focus {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--touch-gap);
 }
 
 .energy-label {
@@ -673,7 +673,7 @@ h1:focus {
 .selector {
   display: flex;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--touch-gap);
 }
 
 .ability-tile {
@@ -682,8 +682,8 @@ h1:focus {
   flex: 1;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 48px;
+  gap: var(--touch-gap);
+  min-height: var(--touch-min);
   padding: 0 8px;
   border: 2px solid var(--team-comet);
   border-radius: 12px;
@@ -739,12 +739,19 @@ h1:focus {
   height: 18px;
 }
 
+/* Space is reserved so showing a reason never shifts the Activate button. */
 .fail-reason {
+  visibility: hidden;
+  min-height: 1.4em;
   margin: 0;
   color: var(--danger);
   font-size: var(--size-body);
   font-weight: var(--weight-button);
   text-align: center;
+}
+
+.fail-reason.is-visible {
+  visibility: visible;
 }
 
 /* Activate (PRD 7.6 states) */
@@ -908,7 +915,7 @@ h1:focus {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--touch-gap);
   padding: 12px;
   overflow-y: auto;
   border: 1px solid var(--line-wall);
@@ -948,7 +955,7 @@ h1:focus {
 .debug-slider input {
   grid-column: 1 / -1;
   width: 100%;
-  min-height: 48px;
+  min-height: var(--touch-min);
   accent-color: var(--team-comet);
 }
 
@@ -1003,8 +1010,12 @@ h1:focus {
     animation-name: fade-out;
   }
 
+  /* A static inner ring replaces the pulse so Effect active still differs
+     from Ready without movement. */
   .activate[data-state='active'] {
     animation: none;
+    outline: 3px solid var(--bg-space);
+    outline-offset: -8px;
   }
 
   .activate[data-state='active'].is-ending {

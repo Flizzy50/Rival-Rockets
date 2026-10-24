@@ -4,7 +4,8 @@ Record one row per device and scenario. Do not record names, device identifiers 
 
 | Build / revision | Date | Device model | OS version | Browser version | Network (no identifying data) | Scenario / AC | Observed result | Measured value | Follow-up |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| | | | | | | | | | |
+| M1 working tree after a1a531a | 2026-10-24 | iPhone (model not recorded) | iOS 18.7 | Opera for iOS 6.7.3 (WebKit; UA reports OPT/6.7.3, not Safari) | LAN HTTPS, home Wi-Fi | Engineer test: setup, shake charge, selection | User reported everything works | Neutral 2.6°; orientation and motion 59 Hz; permission APIs present; vibrate no; wake lock yes; portrait-primary | Repeat in Safari; test Android Chrome |
+| M1 working tree after a1a531a | 2026-10-24 | iPhone (model not recorded) | iOS 18.7 | Opera for iOS 6.7.3 (WebKit; UA reports OPT/6.7.3, not Safari) | LAN HTTPS, home Wi-Fi | Pilot test: setup, calibration, tilt steering in portrait | User reported everything works; portrait comfortable | Neutral 0.8°; orientation and motion 48 Hz; defaults unchanged (dead zone 4°, tau 80 ms, full scale 28°, shake 12 m/s²) | Repeat in Safari; test Android Chrome |
 
 ## M1 scenario checklist
 
