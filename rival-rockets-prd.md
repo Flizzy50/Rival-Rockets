@@ -1,7 +1,7 @@
 # Rival Rockets
 ## Product requirements document
 
-**Version:** 1.1 (adds UI/UX design specification) · **Date:** October 24, 2026 · **Status:** Proposed specification for a hackathon MVP
+**Version:** 1.2 (resolves MVP control, course, room, and rematch decisions) · **Date:** October 24, 2026 · **Status:** Proposed specification for a hackathon MVP
 
 **Product pitch:** Four friends turn their phones into the controls for two rival rockets. Pilots tilt to steer while engineers shake to generate power and choose when to boost or shield. The crew that coordinates best wins a 90-second space race.
 
@@ -62,6 +62,13 @@ No account, email address, app installation, or payment is required.
 - Rockets can bump each other. Ordinary bumps displace them slightly but do not remove points or cores.
 - The course remains visible on each phone. A spectator display may show a larger version of the same arena.
 
+**One-course starting geometry and physics (playtest values):** Use a 600 × 800 logical arena. The drivable clockwise ring is inside a rounded rectangle spanning `(24,24)` to `(576,776)` with corner radius 120, and outside a rounded rectangle spanning `(180,188)` to `(420,612)` with corner radius 80. A rocket is drawn about 48 world units long and collides as a radius-18 circle; keep its center within the ring with that margin. Both rockets start at `x=240`, heading right, in lanes `y=78` and `y=134`; Comet starts in the upper lane in the first match and lanes alternate on every later match in the room. These coordinates are one initial course, not a course editor or an additional course.
+
+- The four gate segments and forward directions are, in order: top at `x=300, y=24..188` heading right; right at `y=400, x=420..576` heading down; bottom at `x=300, y=612..776` heading left; left at `y=400, x=24..180` heading up. Test a rocket's swept center movement through the expected segment in its forward direction; touching or recrossing a line alone does not score.
+- Four course cores start at `(420,106)`, `(498,300)`, `(300,694)`, and `(102,500)`. Draw each about 26 world units across. On a narrow phone, keep the Section 7.4 minimum of 28 CSS px for rockets and 14 CSS px for cores without enlarging their server-side collision or pickup boundaries. A pickup requires the rocket center to pass within 31 world units of an available core. A full rocket leaves it in place.
+- Base forward speed is 120 world units/s, maximum pilot turn rate is 120°/s at full normalized steering, and Boost multiplies forward speed by 1.5 while active. A wall contact keeps the rocket in bounds, redirects an outward heading along the clockwise wall tangent, and uses 60% of base speed for 0.4 s so a rocket cannot stay trapped by a wall.
+- An ordinary collision first separates the two radius-18 circles enough to remove overlap, then displaces each rocket up to 12 additional world units once per contact; contact must end before another bump. An active Shield reduces only the shielded crew's additional incoming bump displacement to 25% of that amount. These values and the course geometry must be tuned against real-phone control feel before claiming balance.
+
 ### Score and victory
 
 **Team score = 25 × valid checkpoint crossings + 10 × cores currently carried.**
@@ -74,6 +81,17 @@ No account, email address, app installation, or payment is required.
 - The dropped core can be collected by either crew; the original owner must wait one second before reclaiming it. It disappears after six seconds if uncollected.
 - Dropping or collecting a core immediately changes the visible score. Checkpoint points cannot be lost.
 - At 90 seconds, the server stops scoring and compares totals. The higher score wins; equal scores produce a draw.
+- Resolve a contested pickup by the earliest swept contact within the simulation step. If both rockets reach the same core at exactly the same instant, leave it uncollected that step; neither team receives an arbitrary priority. Place a dropped core at the impact point projected onto the playable course so it remains reachable. It becomes collectible on the next simulation step, not during the collision that created it.
+- Evaluate each active boost and shield at collision time. If both unshielded rockets are boosting and collide, each can lose one carried core; a blocked hit does not consume the attacker's one-drop allowance. Check expiration before a pickup at the exact six-second dropped-core deadline, and make a course core available at its exact eight-second respawn deadline.
+
+### Tutorial and results explanation
+
+The role tutorial explains the rules before Ready, and the results screen uses the same values. Keep this copy aligned with the shared config whenever a gameplay number changes.
+
+- **Pilot tutorial:** “Tilt to steer. Cross the glowing gate, then the next one. Each gate earns 25. Grab cores for 10 each. Your gate points stay, even if you lose a core.”
+- **Engineer tutorial:** “Shake to charge 25. Boost starts selected. Tilt left and hold for Boost; tilt right and hold for Shield. Tap Activate to spend 50. Boost and Shield last 2 seconds and share a 3-second cooldown. A boosted hit can drop one core; Shield blocks the drop.”
+- **Results explanation:** Show “Gates: [count] × 25 = [points]” and “Cores held: [count] × 10 = [points]” for each team, followed by the total. Explain “Gate points stay. Core points reflect what you hold at the finish.” Show **DRAW** when totals match and no winner on **Interrupted**.
+- **Rematch/role-swap hint:** “Both teammates tap Swap roles. Check motion and set neutral before Ready. The host starts the next match when all four are ready.”
 
 All listed durations, point values, and limits are starting values for playtesting. Rule changes must update the tutorial and results explanation together.
 
@@ -106,6 +124,12 @@ Pilot controls must use relative tilt rather than compass heading. This avoids m
 | Phone display | Show the arena, energy, selected ability, cooldown, scores, and timer. |
 
 Motion is central to the role; the activation button makes the final choice deliberate. Shaking must not accidentally switch the selected ability. Temporarily suspend selection changes during a detected shake, then require a stable tilt before changing selection again.
+
+**Initial motion mapping and thresholds (unvalidated playtest settings):** In portrait, use `deviceorientation.gamma` for left/right tilt and subtract that player's neutral gamma. Positive relative gamma means right; negative means left. Ignore compass `alpha`. Apply a 4° dead zone, map the remaining magnitude linearly to full input at 28°, clamp to `[-1,1]`, and smooth with an 80 ms time constant based on actual sample intervals. Calibrate neutral while gamma remains within a 4° range for one second. Confirm axis sign and comfort on the intended iPhone and Android before Milestone 1 passes; adjust these named values from those measurements, not from simulator output. [MDN orientation axes](https://developer.mozilla.org/en-US/docs/Web/API/Device_orientation_events/Orientation_and_motion_data_explained)
+
+- Select Boost after the smoothed relative gamma stays at least 12° left for 300 ms, or Shield after at least 12° right for 300 ms. Neutral retains the last selection. Start each match with Boost selected. After detecting a shake, lock selection through 300 ms of quiet motion, then require a new stable 300 ms tilt before a switch. Show the pending hold and lock in the engineer panel.
+- For shake detection, prefer the magnitude of gravity-free `devicemotion.acceleration` when all three finite axes exist. Otherwise estimate gravity with a 500 ms low-pass filter of `accelerationIncludingGravity` and use the residual magnitude. A charge gesture needs two distinct acceleration peaks above 12 m/s² with a dip below the threshold between them, separated by 80–450 ms, followed by 300 ms below that threshold before another gesture can begin. A client sends no more than one charge event per second; the server independently enforces the one-second rule and energy cap. Do not award stronger or continuous shaking more energy. A phone with neither usable acceleration source cannot pass the engineer sensor check. [MDN motion data](https://developer.mozilla.org/en-US/docs/Web/API/DeviceMotionEvent)
+- Request any required orientation and motion permissions directly from the Enable motion tap, feature-detecting both permission methods. A granted response alone is insufficient: Pilot setup needs at least three finite gamma readings spanning at least 2° after the tap, and Engineer setup also needs usable acceleration plus a detected practice shake. No readings within three seconds trigger the recovery path in Section 7.7. [MDN permission guidance](https://developer.mozilla.org/en-US/docs/Web/API/Device_orientation_events/Detecting_device_orientation)
 
 ### Abilities
 
@@ -285,7 +309,7 @@ Pilot                                  Engineer
 | Screen | Layout and behavior |
 | --- | --- |
 | Home | Wordmark, one-line pitch, primary **Create room** and secondary **Join room** stacked full width. Small note: "Needs 4 phones with motion sensors." |
-| Join | Large auto-uppercase room code field and a display-name field limited to the Section 10 length. Inline validation with a specific message, e.g. "No room with that code." |
+| Join | Large auto-uppercase room code field and a display-name field limited to the Section 8 length. Inline validation with a specific message, e.g. "No room with that code." |
 | Lobby | Room code at the top with QR code and **Share link** (Web Share API where available, copy-to-clipboard otherwise). Two team columns, each with Pilot and Engineer slot cards. Slot states: Open (dashed outline, "Tap to join"), Taken, Calibrated, Ready (success check), Disconnected (warning). A Ready toggle at the bottom. The creator's Start button stays disabled with a specific reason, e.g. "Waiting for Nova Engineer to calibrate." A Watch link opens the spectator view. |
 | Motion setup | Three-step indicator: Enable → Check → Calibrate. **Enable motion** is a direct user tap. Check shows a dot that moves with tilt; engineers also see "Shake once" with a pop on success. Calibrate asks the player to hold their playing position and tap **Set neutral**, followed by a one-second hold ring. |
 | Practice | Pilot steers a ghost rocket through three rings (~10 s). Engineer shakes to fill two segments, selects Shield, and activates. A "PRACTICE" watermark shows inputs do not count. **Skip** appears after the first success. |
@@ -296,6 +320,8 @@ Pilot                                  Engineer
 | Interrupted | Neutral styling with no winner: "Match interrupted. A player couldn't reconnect." Single **Back to lobby** button. |
 | Spectator (16:9 landscape) | Large centered arena with both crews' next gates marked. Side panels per team: crew names and roles, score, core pips, energy, ability state. Timer top center. An event ticker along the bottom, e.g. "NOVA rammed COMET · core dropped". |
 | Errors | Full-screen card with what happened and what to do next, plus **Create room** and **Join room**. Used for room expiry and server restarts. |
+
+On Results, each player sees the next-round Ready state. The host's **Rematch** returns everyone to the lobby with a fresh match and all Ready states cleared; the host starts its countdown only after four connected, calibrated players become ready again. **Swap roles** applies within one crew only after both teammates tap it on Results. Swapped players repeat the check, calibration, and practice for their new role. A result never changes when later players leave or swap roles.
 
 **Motion setup failures**
 
@@ -383,6 +409,28 @@ The voice is short, energetic, and plain: a teammate calling the play, not a man
 - If the room creator leaves the lobby, another connected player receives the start/rematch controls.
 - Rooms expire after 30 minutes of inactivity. A server restart may end active rooms in the MVP; affected clients must show a clear message and an option to create or join a new room.
 
+### Room and message limits (MVP starting values)
+
+- A display name is trimmed, normalized to Unicode NFC, and limited to **1–16 user-perceived characters** (grapheme clusters). Reject control characters and line breaks. Count with `Intl.Segmenter` on the server; client validation may give earlier feedback, but the server decides. Render the accepted name as text. [MDN grapheme segmentation](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Segmenter)
+- Generate a six-character uppercase room code from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, using cryptographic randomness and retrying collisions among live rooms. The code is a public locator. A seat token is separately generated with at least 128 bits of cryptographic randomness, stored privately for the browser session, and rotated when seat ownership changes.
+- Accept text JSON WebSocket messages of at most **1024 UTF-8 bytes**; reject binary, unknown types, malformed values, nonfinite numbers, and oversized payloads before mutation. A client sends pilot steering at no more than **20 messages/s**. The server allows at most **30 steering messages/s per Pilot seat**, **5 selection/activation requests/s per Engineer seat**, and **40 total inbound messages/s per connection**; the gameplay charge rule remains one accepted charge/s.
+- Limit room creation to **5 attempts/minute per source IP** and joining to **10 attempts/minute per source IP**, including failures. Reject excess attempts with a retry instruction. These transport limits protect the demo; they are not proof against determined abuse or a reason to collect identifying diagnostics.
+- Send an application heartbeat every **1 s**. A missing heartbeat for **3 s** triggers the Section 8 pause rule, even if an old steering value remains available. The server uses its own monotonic clock for all limits. Refresh the room's 30-minute inactivity timer only for accepted create/join/seat/ready/host actions or accepted gameplay input; heartbeat and spectator viewing alone do not keep an idle room alive.
+
+### Ability selection, next round, and reconnection
+
+- The Engineer's stable tilt selects an ability locally for immediate feedback and sends a small `ability.request` with intent `select` and the ability. The server verifies the Engineer seat, owns the selected ability, and broadcasts it so the Pilot can see it. A tap sends `ability.request` with intent `activate`; the server activates its currently selected ability only after its normal energy/cooldown checks. A client-supplied team or role never grants authority. Both crews start each match with Boost selected. Selection alone costs nothing.
+- After a completed match, the host's Rematch resets scores, carried/course/dropped cores, energy, ability selection/effects/cooldown, timers, and Ready states. All later matches in the same room alternate starting lanes, including a new match after an Interrupted return to the lobby. Existing, continuously connected players may retain a valid motion check and neutral for the same role; they still choose Ready for the new round.
+- Both members of a crew must tap Swap roles on Results before that crew's Pilot and Engineer occupants exchange seats. A single tap only shows “Waiting for teammate”; tapping again cancels that pending consent. The swap clears both players' Ready and setup status; each must prove the new role's real sensor input, set neutral, and do its role practice before Ready. Rotate both private seat tokens at the exchange. The host remains the same person, regardless of seat. If the host leaves Results or the lobby, transfer start/rematch control to the longest-connected seated player; spectators never become host.
+- A reconnecting player presents the private token before the 15-second seat deadline. One active connection replaces the old one. If the same page still has usable sensor readings and its neutral, restore them; a reloaded page must obtain usable readings and recalibrate before control resumes. The seat deadline continues until the player has reconnected with usable controls. Resume countdown starts only when all four seats are connected and the reconnecting players' controls are verified. If any seat deadline expires first, end Interrupted without a winner. This intentionally prevents a seat with missing motion data from silently playing as ready.
+
+### Simultaneous events and pause ordering
+
+- Give each disconnected seat its own 15-second monotonic deadline. A second disconnect during a pause keeps the match frozen and starts its own deadline. A disconnect during the three-second resume countdown cancels that countdown and returns to Paused. Restart a full three-second resume countdown only when all four seats are connected with usable controls. The earliest expired seat deadline ends the match as Interrupted.
+- A disconnect during the initial three-second start countdown cancels that countdown and returns to the lobby; it does not create a winner or a played match. Hold that seat for 15 seconds, then reopen it if unclaimed. Recheck all four setup and Ready states before the host can start again.
+- At a coincident server timestamp, process disconnect/heartbeat timeout before countdown completion or the 90-second match deadline. If a disconnect and match deadline coincide, pause first; a later successful reconnect can finish the match, otherwise it ends Interrupted. Score only events with match time **strictly below 90 seconds**. An event at exactly 90 seconds cannot add points. Already completed Results remain frozen even if someone disconnects afterward.
+- Within an ordinary simulation step before the match deadline, process due expirations and course-core respawns, then validated ability requests, movement and gate crossings, collisions/core drops, and finally eligible pickups. A dropped core created in that step cannot be picked up until the next one. This ordering also defines what happens when a pickup and a timer boundary coincide.
+
 ## 9. Browser and technical requirements
 
 Target **Safari on iPhone and Chrome on Android**, with exact device/browser versions recorded during testing. These are intended targets, not a claim that every device or browser configuration will work.
@@ -395,7 +443,7 @@ Target **Safari on iPhone and Chrome on Android**, with exact device/browser ver
 | Shake detection | Detect short bursts using filtered motion data and a cooldown. Do not reward increasingly violent or continuous movement. |
 | Live transport | Use a secure WebSocket connection for rooms, inputs, acknowledgements, and game state. |
 | Rendering | Render a lightweight 2D course locally on each client. Interpolate state updates for smooth movement. |
-| Simulation | Start with a fixed server simulation rate around 30 updates per second and state broadcasts around 15–20 per second; tune from measured behavior. |
+| Simulation | Start with a fixed server simulation rate of 30 updates per second and state broadcasts at 18 per second; tune from measured behavior. Define both rates as named constants. |
 | Storage | Keep rooms and matches in server memory for the MVP. A database is unnecessary for the specified experience. |
 | Deployment | Use hosting that supports persistent WebSocket connections. Deploy early enough to test real phones over HTTPS. |
 
@@ -405,7 +453,7 @@ Keep input messages small and rate-limited. The browser should process raw senso
 
 - Collect only a short display name and temporary session information. Do not request location, contacts, camera access, or financial information.
 - Do not persist raw motion streams. Expire temporary room data with the room.
-- Limit display-name length and render names as plain text. Validate message types, sizes, and values on the server.
+- Limit display names to the Section 8 count and render names as plain text. Validate message types, sizes, and values on the server.
 - Check the WebSocket origin against the game deployment, enforce room/role access, and rate-limit room creation and input messages.
 - Use server-controlled energy and cooldowns so a modified client cannot request unlimited actions.
 - Browser-reported motion is not trustworthy proof of physical movement. Server limits reduce abuse but do not eliminate fabricated input; competitive anti-cheat is outside this casual MVP.
@@ -429,7 +477,7 @@ The MVP is complete when all of the following pass:
 12. The game remains readable and playable on the actual presentation phones, and observed responsiveness is recorded against the target.
 13. With the display set to grayscale, players can still tell the two rockets, scores, and ability states apart. In-match text and essential graphics meet the Section 7.10 contrast targets, and the engineer's selection lock, cooldown, and failed-activation reasons are visible as specified in Section 7.6.
 
-Use small automated checks for scoring order, ability limits, pickups, timers, and role ownership. Use real-device tests for permissions, calibration, shaking, rotation, backgrounding, and connection recovery. Simulated sensor input cannot substitute for physical-device validation.
+Use small automated checks for scoring order, ability limits, pickups, timers, and role ownership, including simultaneous pickup/contact, a second disconnect, interrupted countdowns, and events exactly at the 90-second boundary. Use real-device tests for permissions, calibration, shaking, rotation, backgrounding, and connection recovery. Simulated sensor input cannot substitute for physical-device validation.
 
 ## 12. Build sequence
 
