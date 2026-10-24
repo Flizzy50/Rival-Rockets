@@ -12,11 +12,13 @@
     "lint": "eslint .",
     "test": "vitest run",
     "build": "npm run typecheck && vite build && tsc -p tsconfig.server.build.json",
-    "start": "node dist-server/main.js",
+    "start": "node dist-server/server/main.js",
+    "dev:server": "tsc -p tsconfig.server.build.json && node dist-server/server/main.js --dev",
     "check": "npm run lint && npm test && npm run build"
   },
   "dependencies": {
-    "express": "5.3.0"
+    "express": "5.3.0",
+    "ws": "8.22.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -24,9 +26,12 @@
     "@fontsource/space-grotesk": "5.3.0",
     "@types/express": "5.0.6",
     "@types/node": "24.19.2",
+    "@types/ws": "8.18.2",
     "@vitejs/plugin-basic-ssl": "2.3.0",
     "eslint": "10.13.0",
+    "fast-check": "4.10.2",
     "globals": "17.13.0",
+    "qrcode-generator": "2.0.4",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.0",
     "vite": "8.3.5",

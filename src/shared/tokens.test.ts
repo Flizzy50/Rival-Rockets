@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COLOR_TOKENS, color, cssVariables, TEAM_COMET } from './tokens';
+import { COLOR_TOKENS, color, cssVariables, TEAM_COMET } from './tokens.js';
 
 // Exact PRD 7.3 palette; a mismatch here means the PRD and code disagree.
 const PRD_COLORS: Record<string, string> = {

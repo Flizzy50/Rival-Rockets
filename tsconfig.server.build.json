@@ -2,9 +2,9 @@
   "extends": "./tsconfig.node.json",
   "compilerOptions": {
     "noEmit": false,
-    "rootDir": "server",
+    "rootDir": ".",
     "outDir": "dist-server"
   },
-  "include": ["server"],
-  "exclude": ["server/**/*.test.ts"]
+  "include": ["server", "src/shared"],
+  "exclude": ["**/*.test.ts"]
 }

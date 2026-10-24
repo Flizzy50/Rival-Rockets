@@ -1,0 +1,356 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add dependencies and server build wiring": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881055214
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881064608
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881351631
+      }
+    ],
+    "1.2 Extend shared config with M2 constants": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881055331
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881065461
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881351726
+      }
+    ],
+    "1.4 Create the shared protocol module": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881055437
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881357605
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881549994
+      }
+    ],
+    "2.1 Extend `src/shared/rules/abilities.ts` with server-owned selection": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881055537
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881358771
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881550562
+      }
+    ],
+    "2.6 Implement `src/shared/rules/physics.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881055654
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881359474
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881551356
+      }
+    ],
+    "2.10 Implement `src/shared/rules/seats.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881055772
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881688502
+      }
+    ],
+    "2.13 Implement `src/shared/rules/control-test.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881055888
+      }
+    ],
+    "3. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881055980
+      }
+    ],
+    "4.1 Implement `server/validate.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881056085
+      }
+    ],
+    "4.6 Implement `server/rate-limit.ts`, `server/origin.ts`, `server/client-ip.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881056189
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881690196
+      }
+    ],
+    "4.10 Implement `server/rooms.ts` (Room_Store)": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881056277
+      }
+    ],
+    "4.15 Implement `server/public-view.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881056374
+      }
+    ],
+    "5.1 Implement `server/simulation.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881056456
+      }
+    ],
+    "5.3 Implement `server/dispatch.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881056538
+      }
+    ],
+    "5.6 Implement the Gateway and wire it into the server": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881056621
+      }
+    ],
+    "6. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881056703
+      }
+    ],
+    "7.1 Implement `src/client/net/session.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881056803
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881690484
+      }
+    ],
+    "7.3 Implement `src/client/net/latency.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881056899
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881691628
+      }
+    ],
+    "7.6 Implement `src/client/net/interpolate.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881056988
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881692864
+      }
+    ],
+    "7.9 Implement `src/client/net/socket.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881057098
+      }
+    ],
+    "8.1 Add server-authority mode to the motion controller and the crew view reducer": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881057205
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881693697
+      }
+    ],
+    "8.4 Implement `src/client/room-context.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881057362
+      }
+    ],
+    "8.5 Extract the pilot and engineer panels": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881057453
+      }
+    ],
+    "8.6 Update `src/client/ui/arena-canvas.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881057548
+      },
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881694565
+      }
+    ],
+    "8.7 Implement copy, QR, and the home, join, and error screens": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881057696
+      }
+    ],
+    "8.9 Implement `src/client/ui/lobby-screen.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881057797
+      }
+    ],
+    "8.10 Connect the setup screen to the room": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881057886
+      }
+    ],
+    "8.11 Implement the control screen and crew status row": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881057973
+      }
+    ],
+    "8.12 Implement `src/client/ui/room-watch-screen.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881058064
+      }
+    ],
+    "8.13 Add latency diagnostics to the debug panel": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881058152
+      }
+    ],
+    "8.14 Wire the room flow into `src/client/app.ts`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881058247
+      }
+    ],
+    "9. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881058339
+      }
+    ],
+    "10.1 Update `render.yaml` and `README.md`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881058457
+      }
+    ],
+    "10.2 Add the M2 section to `docs/device-test-log.md`": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881058572
+      }
+    ],
+    "10.3 Add the M2 copy to PRD Section 7.9": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881058683
+      }
+    ],
+    "10.4 Run the full verification sequence": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881058789
+      }
+    ],
+    "11. Final checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881058899
+      }
+    ],
+    "1. Set up dependencies, build wiring, shared constants, and contracts": [
+      {
+        "executionId": "237af75f-3973-4cd1-9006-25b7b4665702",
+        "chatSessionId": "sess_0e67d168-7954-4a88-9ee6-8dc5b54bc488",
+        "timestamp": 1792881550166
+      }
+    ]
+  }
+}

@@ -4,17 +4,21 @@ import {
   ABILITY_DURATION_MS,
   CHARGE_ENERGY,
   CHARGE_INTERVAL_MS,
+  DEFAULT_ABILITY,
   INITIAL_ENERGY,
   MAX_ENERGY,
   SHARED_COOLDOWN_MS,
-} from '../config';
+} from '../config.js';
 import {
+  activateSelected,
   applyCharge,
+  clearExpiredEffect,
   createCrewAbilityState,
   getAbilityStatus,
   requestActivation,
+  selectAbility,
   type CrewAbilityState,
-} from './abilities';
+} from './abilities.js';
 
 function withEnergy(energy: number): CrewAbilityState {
   return { ...createCrewAbilityState(), energy };
@@ -144,5 +148,80 @@ describe('ability status', () => {
       energyShortfall: 25,
     });
     expect(getAbilityStatus(withEnergy(50), 0)).toMatchObject({ phase: 'ready', energyShortfall: 0 });
+  });
+});
+
+describe('server-owned selection', () => {
+  it('starts with Boost selected, no effect, and no cooldown', () => {
+    const state = createCrewAbilityState();
+    expect(state.selectedAbility).toBe(DEFAULT_ABILITY);
+    expect(state.selectedAbility).toBe('boost');
+    expect(state.activeAbility).toBeNull();
+    expect(state.effectEndsAtMs).toBeNull();
+    expect(state.cooldownEndsAtMs).toBeNull();
+  });
+
+  it('selects at no cost, even during the cooldown', () => {
+    const start = withEnergy(25);
+    const shield = selectAbility(start, 'shield');
+    expect(shield).toEqual({ ...start, selectedAbility: 'shield' });
+
+    const active = activateSelected(withEnergy(100), 0).state;
+    const switched = selectAbility(active, 'shield');
+    expect(switched.selectedAbility).toBe('shield');
+    expect(switched.energy).toBe(active.energy);
+    expect(switched.activeAbility).toBe('boost');
+    expect(switched.cooldownEndsAtMs).toBe(active.cooldownEndsAtMs);
+  });
+
+  it('returns the same object when the ability is already selected', () => {
+    const start = createCrewAbilityState();
+    expect(selectAbility(start, 'boost')).toBe(start);
+  });
+
+  it('activates the server selection with the PRD cost, duration, and cooldown', () => {
+    const selected = selectAbility(withEnergy(75), 'shield');
+    const { state, result } = activateSelected(selected, 1000);
+    expect(result).toBe('activated');
+    expect(state.activeAbility).toBe('shield');
+    expect(state.selectedAbility).toBe('shield');
+    expect(state.energy).toBe(75 - ABILITY_COST);
+    expect(state.effectEndsAtMs).toBe(1000 + ABILITY_DURATION_MS);
+    expect(state.cooldownEndsAtMs).toBe(1000 + SHARED_COOLDOWN_MS);
+  });
+
+  it('returns the identical state for rejected activations', () => {
+    const poor = withEnergy(25);
+    const noEnergy = activateSelected(poor, 0);
+    expect(noEnergy.result).toBe('not-enough-energy');
+    expect(noEnergy.state).toBe(poor);
+
+    const active = activateSelected(withEnergy(100), 0).state;
+    const busy = activateSelected(active, SHARED_COOLDOWN_MS - 1);
+    expect(busy.result).toBe('cooldown');
+    expect(busy.state).toBe(active);
+  });
+});
+
+describe('clearing expired effects', () => {
+  it('keeps the effect until its end time, then clears it', () => {
+    const active = activateSelected(withEnergy(100), 0).state;
+    expect(clearExpiredEffect(active, ABILITY_DURATION_MS - 1)).toBe(active);
+
+    const cleared = clearExpiredEffect(active, ABILITY_DURATION_MS);
+    expect(cleared.activeAbility).toBeNull();
+    expect(cleared.effectEndsAtMs).toBeNull();
+    // The shared cooldown, energy, and selection outlive the effect.
+    expect(cleared.cooldownEndsAtMs).toBe(SHARED_COOLDOWN_MS);
+    expect(cleared.energy).toBe(active.energy);
+    expect(cleared.selectedAbility).toBe(active.selectedAbility);
+    expect(getAbilityStatus(cleared, ABILITY_DURATION_MS).phase).toBe('cooldown');
+  });
+
+  it('returns the same object when no effect is running', () => {
+    const idle = createCrewAbilityState();
+    expect(clearExpiredEffect(idle, 10_000)).toBe(idle);
+    const cleared = clearExpiredEffect(activateSelected(withEnergy(100), 0).state, ABILITY_DURATION_MS);
+    expect(clearExpiredEffect(cleared, ABILITY_DURATION_MS + 1)).toBe(cleared);
   });
 });

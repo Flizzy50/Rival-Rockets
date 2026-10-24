@@ -3,8 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
 import { DEFAULT_PORT, HOST, SHUTDOWN_TIMEOUT_MS } from './config.js';
 
-// Resolved from the compiled file (dist-server/main.js) so the working directory does not matter.
-const distDir = fileURLToPath(new URL('../dist', import.meta.url));
+// Resolved from the compiled file (dist-server/server/main.js) so the working directory does not matter.
+const distDir = fileURLToPath(new URL('../../dist', import.meta.url));
 const port = Number(process.env.PORT) || DEFAULT_PORT;
 
 const server = http.createServer(createApp(distDir));

@@ -43,13 +43,77 @@ export const SHAKE_GRAVITY_TAU_MS = 500;
 // smoothing across stale data.
 export const SENSOR_GAP_RESET_MS = 500;
 
+// Players and seats (PRD 1): two crews of Pilot + Engineer, exactly four.
+export const ACTIVE_PLAYERS = 4;
+export const SEAT_COUNT = 4;
+
+// Rooms, names, and tokens (PRD 8). The alphabet drops 0/O, 1/I/L (PRD 7.3).
+export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const ROOM_CODE_LENGTH = 6;
+// Grapheme clusters, counted with Intl.Segmenter on the server.
+export const DISPLAY_NAME_MAX_GRAPHEMES = 16;
+// UTF-8 bytes per text message; checked before parsing.
+export const CLIENT_MESSAGE_MAX_BYTES = 1024;
+// 16 bytes = 128 bits, the PRD minimum for a seat token.
+export const RECONNECT_TOKEN_BYTES = 16;
+// M2: largest int32, so seq stays a safe integer and fits any JSON parser.
+export const SEQUENCE_MAX = 2147483647;
+
+// Liveness and holds (PRD 8).
+export const HEARTBEAT_INTERVAL_MS = 1000;
+export const HEARTBEAT_TIMEOUT_MS = 3000;
+export const SEAT_HOLD_MS = 15000;
+export const ROOM_INACTIVITY_MS = 1800000;
+
+// Server rates (PRD 9); tune from measured behavior.
+export const SIMULATION_HZ = 30;
+export const BROADCAST_HZ = 18;
+
+// Input and request limits (PRD 8). Client steering stays below the server
+// cap so normal jitter never trips the limiter.
+export const CLIENT_STEERING_HZ = 20;
+export const SERVER_STEERING_PER_SEC = 30;
+export const ABILITY_REQUESTS_PER_SEC = 5;
+export const SOCKET_MESSAGES_PER_SEC = 40;
+// Per source IP, failures included.
+export const ROOM_CREATES_PER_MIN_PER_IP = 5;
+export const ROOM_JOINS_PER_MIN_PER_IP = 10;
+
+// Arena and rocket (PRD 4). Radius is the collision circle; length is drawn.
+export const ARENA_WIDTH = 600;
+export const ARENA_HEIGHT = 800;
+export const ROCKET_RADIUS = 18;
+export const ROCKET_LENGTH = 48;
+
+// Movement (PRD 4).
+export const BASE_SPEED = 120;
+export const MAX_TURN_DEG_PER_SEC = 120;
+export const BOOST_SPEED_MULTIPLIER = 1.5;
+
+// Start lanes (PRD 4). Heading is radians with 0 = +x ("right"); Comet takes
+// the upper lane in the first match.
+export const START_LANES = {
+  comet: { x: 240, y: 78, heading: 0 },
+  nova: { x: 240, y: 134, heading: 0 },
+} as const;
+
+// M2: about two broadcast intervals, so one late snapshot does not stall
+// interpolation.
+export const INTERPOLATION_DELAY_MS = 100;
+
+// Latency diagnostics (PRD 2). Window size and pending timeout are M2 values;
+// the 150 ms p95 is the PRD target to measure, not a result.
+export const LATENCY_SAMPLE_WINDOW = 200;
+export const LATENCY_PENDING_TIMEOUT_MS = 5000;
+export const LATENCY_TARGET_P95_MS = 150;
+
 // Sensor-test rocket preview, using the PRD 4 arena and movement so pilot
 // comfort is judged at the real turn feel.
-export const PREVIEW_ARENA_WIDTH = 600;
-export const PREVIEW_ARENA_HEIGHT = 800;
-export const PREVIEW_SPEED_UNITS_PER_S = 120;
-export const PREVIEW_MAX_TURN_DEG_PER_S = 120;
-export const PREVIEW_ROCKET_LENGTH = 48;
+export const PREVIEW_ARENA_WIDTH = ARENA_WIDTH;
+export const PREVIEW_ARENA_HEIGHT = ARENA_HEIGHT;
+export const PREVIEW_SPEED_UNITS_PER_S = BASE_SPEED;
+export const PREVIEW_MAX_TURN_DEG_PER_S = MAX_TURN_DEG_PER_SEC;
+export const PREVIEW_ROCKET_LENGTH = ROCKET_LENGTH;
 // M1: caps one frame step after a stall so the rocket never teleports.
 export const PREVIEW_MAX_STEP_MS = 100;
 

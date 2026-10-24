@@ -10,6 +10,19 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
+    // Phones reach the room server through the Vite HTTPS origin, so the page and
+    // socket stay same-origin (wss) without a second certificate. Run
+    // `npm run dev:server` alongside `npm run dev`.
+    proxy: {
+      '/ws': {
+        // Must match DEFAULT_PORT in server/config.ts.
+        target: 'http://localhost:3000',
+        ws: true,
+        // Keep the phone's Host header: the dev-mode origin check compares the
+        // Origin host with Host, and rewriting it to localhost would fail that.
+        changeOrigin: false,
+      },
+    },
   },
   build: {
     outDir: 'dist',

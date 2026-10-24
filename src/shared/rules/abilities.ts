@@ -3,10 +3,11 @@ import {
   ABILITY_DURATION_MS,
   CHARGE_ENERGY,
   CHARGE_INTERVAL_MS,
+  DEFAULT_ABILITY,
   INITIAL_ENERGY,
   MAX_ENERGY,
   SHARED_COOLDOWN_MS,
-} from '../config';
+} from '../config.js';
 
 // Crew energy and ability rules (PRD 5). In M1 the engineer phone runs them
 // locally for the sensor test. M2 moves authority to the server, which imports
@@ -23,6 +24,9 @@ export interface CrewAbilityState {
   readonly activeAbility: Ability | null;
   readonly effectEndsAtMs: number | null;
   readonly cooldownEndsAtMs: number | null;
+  // Server-owned in M2 so Activate cannot be steered by a client naming an
+  // ability (Requirement 14.9). The M1 sensor test ignores it.
+  readonly selectedAbility: Ability;
 }
 
 export type ChargeResult = 'accepted' | 'rate-limited' | 'full';
@@ -47,6 +51,7 @@ export function createCrewAbilityState(): CrewAbilityState {
     activeAbility: null,
     effectEndsAtMs: null,
     cooldownEndsAtMs: null,
+    selectedAbility: DEFAULT_ABILITY,
   };
 }
 
@@ -96,6 +101,27 @@ export function requestActivation(
     },
     result: 'activated',
   };
+}
+
+// Selection costs nothing and has no energy or cooldown condition (PRD 5,
+// Requirement 14.5). The shake lock is a client-side motion rule, not a crew rule.
+export function selectAbility(state: CrewAbilityState, ability: Ability): CrewAbilityState {
+  if (state.selectedAbility === ability) return state;
+  return { ...state, selectedAbility: ability };
+}
+
+export function activateSelected(
+  state: CrewAbilityState,
+  nowMs: number,
+): { state: CrewAbilityState; result: ActivationResult } {
+  return requestActivation(state, state.selectedAbility, nowMs);
+}
+
+// Snapshots and movement read activeAbility directly, so a finished effect
+// must not linger there until the next activation.
+export function clearExpiredEffect(state: CrewAbilityState, nowMs: number): CrewAbilityState {
+  if (state.effectEndsAtMs === null || nowMs < state.effectEndsAtMs) return state;
+  return { ...state, activeAbility: null, effectEndsAtMs: null };
 }
 
 export function getAbilityStatus(state: CrewAbilityState, nowMs: number): AbilityStatus {
