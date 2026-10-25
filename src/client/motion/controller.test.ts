@@ -191,6 +191,32 @@ describe('motion controller, server authority (Requirements 19.2-19.4, 19.7)', (
     expect(c.drainEvents()).toEqual([]);
   });
 
+  // Regression: the control screen syncs the server selection every frame.
+  // That must not restart a tilt hold, or the hold can never complete.
+  it('completes a tilt hold while the server selection is synced every frame', () => {
+    const c = createMotionController('engineer', { authority: 'server' });
+    c.setNeutral(0);
+    let changedAt: number | null = null;
+    for (let t = 0; t <= 1000 && changedAt === null; t += STEP_MS) {
+      orientation(c, t, 20);
+      if (ofType(c.drainEvents(), 'selection-changed').length > 0) changedAt = t;
+      // Server still says Boost until the select request lands.
+      else c.syncSelection('boost');
+    }
+    expect(changedAt).not.toBeNull();
+    expect(changedAt ?? Infinity).toBeLessThanOrEqual(SELECTION_HOLD_MS + 100);
+    expect(c.snapshot(changedAt ?? 0).selected).toBe('shield');
+  });
+
+  it('drops a hold that points at the ability the server just chose', () => {
+    const c = createMotionController('engineer', { authority: 'server' });
+    c.setNeutral(0);
+    for (let t = 0; t <= 100; t += STEP_MS) orientation(c, t, 20);
+    expect(c.snapshot(100).pendingTarget).toBe('shield');
+    c.syncSelection('shield');
+    expect(c.snapshot(100)).toMatchObject({ selected: 'shield', pendingTarget: null });
+    expect(c.drainEvents()).toEqual([]);
+  });
   it('sends no selection changes and neutral steering while blocked', () => {
     const c = createMotionController('engineer', { authority: 'server' });
     c.setNeutral(0);

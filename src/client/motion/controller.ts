@@ -111,7 +111,7 @@ export interface MotionController {
   activate(nowMs: number): ActivationResult;
   // Server mode: emits activate-requested for the screen to send.
   requestActivate(nowMs: number): void;
-  // Server mode: adopt the server's selection without emitting an event.
+  // Server mode: adopt the server's selection without emitting an event. Safe to call every frame.
   syncSelection(ability: Ability): void;
   snapshot(nowMs: number): MotionSnapshot;
   drainEvents(): ControllerEvent[];
@@ -249,10 +249,18 @@ export function createMotionController(role: Role, options: ControllerOptions = 
       events.push({ type: 'activate-requested', timeMs: nowMs, ability: selection.selected });
     },
 
+    // Called every frame by the control screen, so it must leave a running
+    // tilt hold alone; resetting it here meant the hold could never finish.
     syncSelection(ability) {
-      if (selection.selected === ability && selection.pendingTarget === null) return;
-      selection = { selected: ability, pendingTarget: null, pendingSinceMs: null };
-      pendingProgress = 0;
+      if (selection.selected === ability) return;
+      // A hold toward the ability the server now has is moot; any other hold keeps going.
+      const keepHold = selection.pendingTarget !== null && selection.pendingTarget !== ability;
+      selection = {
+        selected: ability,
+        pendingTarget: keepHold ? selection.pendingTarget : null,
+        pendingSinceMs: keepHold ? selection.pendingSinceMs : null,
+      };
+      if (!keepHold) pendingProgress = 0;
     },
 
     snapshot(nowMs) {

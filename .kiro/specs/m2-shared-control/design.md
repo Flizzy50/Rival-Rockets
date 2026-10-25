@@ -413,7 +413,7 @@ export function parseRoomParam(search: string): string | null;        // upperca
 - A shake gesture emits `{ type: 'charge-requested' }` instead of calling `applyCharge`.
 - `requestActivate(nowMs)` emits `{ type: 'activate-requested' }`.
 - A selection change still runs locally (same-frame ring and tile) and emits `selection-changed`; the screen sends `ability.request select`.
-- `syncSelection(ability)` sets the local selection to the server's value without emitting an event and clears any pending hold.
+- `syncSelection(ability)` sets the local selection to the server's value without emitting an event. It keeps a running tilt hold toward the other ability and drops only a hold toward the ability the server already has, because the control screen calls it every frame.
 
 ### Client: screens
 
