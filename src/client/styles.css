@@ -671,7 +671,12 @@ h1:focus {
 .match-screen { position: relative; }
 .match-screen .middle { overflow: hidden; }
 .match-debug { position: absolute; bottom: 0; right: 0; }
-.pause-controls { position: absolute; top: 0; left: 0; }
+.pause-controls { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; align-items: center; gap: 8px; }
+/* Paused (PRD 7.7): dimmed, frozen arena; opacity only, so reduced motion needs nothing extra. */
+.arena.is-paused { opacity: 0.45; transition: opacity var(--transition) ease-out; }
+.hold-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--bg-surface); overflow: hidden; }
+.hold-bar-fill { display: block; height: 100%; background: var(--warning); transform-origin: left center; transform: scaleX(var(--hold, 1)); }
+.result-seats { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; color: var(--text-primary); }
 .countdown-overlay {
   position: absolute;
   inset: 0;

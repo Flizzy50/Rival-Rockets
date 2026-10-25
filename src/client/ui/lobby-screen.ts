@@ -3,7 +3,7 @@ import { TEAM_COMET, TEAM_NOVA } from '../../shared/tokens';
 import type { AppContext } from '../app';
 import { buildShareLink } from '../net/session';
 import { seatRole, seatTeam } from '../room-context';
-import { DEVELOPER_ONLY, FALLBACK_REJECT, rejectCopy, ROOM_COPY, waitingFor } from './copy';
+import { DEVELOPER_ONLY, FALLBACK_REJECT, M4_COPY, rejectCopy, ROOM_COPY, waitingFor } from './copy';
 import { button, el, setText } from './dom';
 import { checkIcon, cometGlyphIcon, lightningBoltIcon, novaGlyphIcon, steeringArrowIcon } from './icons';
 import { createQrSvg } from './qr';
@@ -234,7 +234,7 @@ export function mountLobbyScreen(root: HTMLElement, ctx: AppContext): () => void
     for (const s of state.seats) renderSeat(s, state, mySeat);
     const blocker = startBlocker(state.seats);
     setText(status, state.phase !== 'lobby' ? 'A match is running. Watch it?' : blocker ? startBlockerText(blocker) : 'Waiting for the host to start');
-    setText(notice, state.returnReason === 'abandoned' ? "Match interrupted. A player couldn't reconnect." : state.returnReason === 'countdown-cancelled' ? 'Countdown cancelled. Check motion and get ready again.' : '');
+    setText(notice, state.returnReason === 'interrupted' ? M4_COPY.interrupted : state.returnReason === 'countdown-cancelled' ? M4_COPY.countdownCancelled : state.returnReason === 'match-error' ? M4_COPY.matchError : '');
     const practiced = mySeat !== null && ctx.practiced.has(mySeat);
     const calibrated = state.seats.find((s) => s.seat === mySeat)?.setup === 'calibrated';
     const ready = state.seats.find((s) => s.seat === mySeat)?.ready === true;

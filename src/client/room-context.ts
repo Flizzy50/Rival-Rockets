@@ -33,6 +33,8 @@ export interface RoomContext {
   readonly latency: LatencyMonitor;
   readonly participantId: string | null;
   readonly roomState: RoomStateMessage | null;
+  // performance.now() when roomState arrived; hold timers count down from it.
+  readonly roomReceivedAtMs: number;
   readonly matchState: MatchStateMessage | null;
   readonly buffer: SnapshotBuffer;
   readonly crew: CrewView;
@@ -72,6 +74,7 @@ export function createRoomContext(
   const crewKinds = new Map<number, CrewKind | 'steer'>();
   let participantId: string | null = null;
   let roomState: RoomStateMessage | null = null;
+  let roomReceivedAtMs = 0;
   let matchState: MatchStateMessage | null = null;
   let buffer = createBuffer();
   let crew = createCrewView();
@@ -118,9 +121,15 @@ export function createRoomContext(
       participantId = m.participantId;
       if (m.seat !== null && m.token !== null) saveSession({ code: m.code, seat: m.seat, token: m.token });
     }),
+    // A role swap moves this player to the crewmate's seat with a new token;
+    // the old one is dead, so a reload must use this one (PRD 8).
+    net.on('seat.swapped', (m) => {
+      saveSession({ code: m.code, seat: m.seat, token: m.token });
+    }),
     net.on('room.state', (m) => {
       const hadSeat = ownSeat();
       roomState = m;
+      roomReceivedAtMs = performance.now();
       // A seat that is gone cannot be reclaimed, so its token is useless.
       if (hadSeat !== null && ownSeat() === null) clearSession();
       if (m.activeMatchId === null || (matchState && m.activeMatchId !== matchState.matchId)) {
@@ -172,6 +181,9 @@ export function createRoomContext(
     },
     get roomState() {
       return roomState;
+    },
+    get roomReceivedAtMs() {
+      return roomReceivedAtMs;
     },
     get matchState() {
       return matchState;

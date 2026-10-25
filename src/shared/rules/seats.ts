@@ -22,6 +22,8 @@ export interface SeatSlot {
   readonly setup: SetupStatus;
   // Held for a disconnected occupant (PRD 8); the occupant keeps the seat.
   readonly held: boolean;
+  // Consent to swap roles with the crewmate on Results (PRD 8).
+  readonly swapRequested: boolean;
 }
 
 export interface SeatsState {
@@ -37,7 +39,7 @@ export type SeatResult =
 
 const COMET_SEATS = ['comet-pilot', 'comet-engineer'] as const satisfies readonly SeatId[];
 
-const OPEN_SEAT: SeatSlot = { occupantId: null, setup: 'unverified', held: false, ready: false };
+const OPEN_SEAT: SeatSlot = { occupantId: null, setup: 'unverified', held: false, ready: false, swapRequested: false };
 
 function openSeats(): Record<SeatId, SeatSlot> {
   const seats = {} as Record<SeatId, SeatSlot>;
@@ -95,7 +97,7 @@ export function claimSeat(s: SeatsState, participantId: string, seat: SeatId): S
     ok: true,
     state: {
       ...s,
-      seats: { ...s.seats, [seat]: { occupantId: participantId, setup: 'unverified', held: false, ready: false } },
+      seats: { ...s.seats, [seat]: { occupantId: participantId, setup: 'unverified', held: false, ready: false, swapRequested: false } },
       hostId: s.hostId ?? participantId,
     },
   };
@@ -150,7 +152,8 @@ export function setConnected(s: SeatsState, participantId: string, connected: bo
     connectedSince: connected && !participant.connected ? nowMs : participant.connectedSince,
   });
   const seat = seatOf(s, participantId);
-  const seats = seat === null ? s.seats : { ...s.seats, [seat]: { ...s.seats[seat], held: !connected, ready: connected && s.seats[seat].ready } };
+  // A disconnect also withdraws a pending swap, so nobody swaps while away.
+  const seats = seat === null ? s.seats : { ...s.seats, [seat]: { ...s.seats[seat], held: !connected, ready: connected && s.seats[seat].ready, swapRequested: connected && s.seats[seat].swapRequested } };
   return { ...s, participants, seats };
 }
 
@@ -221,4 +224,37 @@ export function startBlocker(seats: readonly SeatReadiness[]): StartBlocker | nu
     if (!slot.ready) return { seat, step: 'ready' };
   }
   return null;
+}
+
+export function crewmateSeat(seat: SeatId): SeatId {
+  return seat.endsWith('pilot') ? (seat.replace('pilot', 'engineer') as SeatId) : (seat.replace('engineer', 'pilot') as SeatId);
+}
+
+export type SwapResult =
+  | { readonly ok: true; readonly state: SeatsState; readonly swapped: boolean }
+  | { readonly ok: false; readonly reason: RejectReason };
+
+// A tap toggles this player's consent. When both crewmates have consented and
+// are connected, they exchange seats and must set up the new role again
+// (PRD 7.7, 8). The host stays the same person because it is a participant id.
+export function toggleSwap(s: SeatsState, participantId: string): SwapResult {
+  if (!s.participants.has(participantId)) return { ok: false, reason: 'not-in-room' };
+  const seat = seatOf(s, participantId);
+  if (seat === null) return { ok: false, reason: 'not-seated' };
+  const mine = s.seats[seat];
+  const mateSeat = crewmateSeat(seat);
+  const mate = s.seats[mateSeat];
+  const requested = !mine.swapRequested;
+  const mateLive = mate.occupantId !== null && s.participants.get(mate.occupantId)?.connected === true;
+  if (!requested || !mate.swapRequested || !mateLive || mate.occupantId === null) {
+    return { ok: true, swapped: false, state: { ...s, seats: { ...s.seats, [seat]: { ...mine, swapRequested: requested } } } };
+  }
+  const fresh = (occupantId: string): SeatSlot => ({ occupantId, setup: 'unverified', held: false, ready: false, swapRequested: false });
+  return { ok: true, swapped: true, state: { ...s, seats: { ...s.seats, [seat]: fresh(mate.occupantId), [mateSeat]: fresh(participantId) } } };
+}
+
+export function clearSwaps(s: SeatsState): SeatsState {
+  const seats = { ...s.seats };
+  for (const seat of SEAT_IDS) seats[seat] = { ...seats[seat], swapRequested: false };
+  return { ...s, seats };
 }

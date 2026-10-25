@@ -74,6 +74,7 @@ export function attachGateway(server: Server, options: GatewayOptions): Gateway 
     for (const item of out) {
       if (item.kind === 'send') sendTo(item.to, item.message);
       else if (item.kind === 'room') broadcast(item.code, item.message);
+      else if (item.kind === 'participant') sendToParticipant(item.code, item.participantId, item.message);
       else supersede(item.code, item.participantId, item.keep);
     }
   }
@@ -81,6 +82,13 @@ export function attachGateway(server: Server, options: GatewayOptions): Gateway 
   function sendTo(id: string, message: ServerMessage): void {
     const entry = live.get(id);
     if (entry && entry.socket.readyState === WebSocket.OPEN) entry.socket.send(JSON.stringify(message));
+  }
+
+  function sendToParticipant(code: string, participantId: string, message: ServerMessage): void {
+    const text = JSON.stringify(message);
+    for (const { socket, conn } of live.values()) {
+      if (conn.code === code && conn.participantId === participantId && socket.readyState === WebSocket.OPEN) socket.send(text);
+    }
   }
 
   function broadcast(code: string, message: ServerMessage): void {
@@ -106,10 +114,10 @@ export function attachGateway(server: Server, options: GatewayOptions): Gateway 
     randomInt: (max) => randomInt(max),
     randomToken: () => randomBytes(RECONNECT_TOKEN_BYTES).toString('base64url'),
   });
-  const simulation = createSimulation({ nowMs, sendTo, broadcast, controlTestEnabled: options.controlTestEnabled,
+  const simulation = createSimulation({ nowMs, sendTo, broadcast, log, controlTestEnabled: options.controlTestEnabled,
     roomChanged(code) {
       const room = rooms.get(code);
-      if (room) broadcast(code, toRoomState(room, options.controlTestEnabled, simulation.current(code)?.matchId ?? null, simulation.roomStatus(code)));
+      if (room) broadcast(code, toRoomState(room, options.controlTestEnabled, simulation.current(code)?.matchId ?? null, simulation.roomStatus(code), nowMs()));
     },
   });
   const deps: DispatchDeps = {
@@ -161,7 +169,13 @@ export function attachGateway(server: Server, options: GatewayOptions): Gateway 
     for (const { socket, conn } of live.values()) {
       if (isHeartbeatExpired(conn, nowMs())) { deliver(handleClose(deps, conn)); socket.terminate(); }
     }
-    simulation.tick();
+    // The simulation already contains per-room faults; this guard keeps the
+    // timer alive if anything else in the pass throws.
+    try {
+      simulation.tick();
+    } catch (error) {
+      log(`simulation loop error: ${error instanceof Error ? error.name : 'unknown'}`);
+    }
   }, SIMULATION_LOOP_INTERVAL_MS);
   const houseTimer = setInterval(() => {
     const now = nowMs();

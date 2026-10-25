@@ -164,3 +164,10 @@ describe('stepRocket input sanitizing', () => {
     expect(pose).toEqual(CENTER);
   });
 });
+
+describe('start lanes', () => {
+  it('swaps the two lanes when Comet starts lower', () => {
+    expect(createStartPose('comet', 'comet-lower')).toEqual(createStartPose('nova', 'comet-upper'));
+    expect(createStartPose('nova', 'comet-lower')).toEqual(createStartPose('comet', 'comet-upper'));
+  });
+});

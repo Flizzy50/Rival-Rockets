@@ -39,7 +39,7 @@ export function toCrew(crew: CrewAbilityState, sessionMs: number): PublicCrewSta
   };
 }
 
-export function toRoomState(room: Room, controlTestEnabled: boolean, activeMatchId: number | null, status: { phase: RoomPhase; result: PublicMatchResult | null; returnReason: ReturnReason | null } = { phase: 'lobby', result: null, returnReason: null }): RoomStateMessage {
+export function toRoomState(room: Room, controlTestEnabled: boolean, activeMatchId: number | null, status: { phase: RoomPhase; result: PublicMatchResult | null; returnReason: ReturnReason | null } = { phase: 'lobby', result: null, returnReason: null }, nowMs = 0): RoomStateMessage {
   const participants = [...room.seats.participants.values()]
     .sort((a, b) => a.joinOrder - b.joinOrder)
     .map((p) => ({
@@ -58,6 +58,9 @@ export function toRoomState(room: Room, controlTestEnabled: boolean, activeMatch
       connected: occupant?.connected ?? false,
       held: slot.held,
       ready: slot.ready,
+      swapRequested: slot.swapRequested,
+      // A remaining duration, not the deadline, so phone clocks need not agree.
+      holdRemainingMs: (() => { const until = room.holdUntilMs[seat]; return until === null ? null : Math.max(0, until - nowMs); })(),
     };
   });
   return {
@@ -110,14 +113,14 @@ export function toPublicResult(result: MatchResult, matchId: number): PublicMatc
   const score = (b: ScoreBreakdown) => ({ crossings: b.crossings, checkpointPoints: b.checkpointPoints, carried: b.carried, corePoints: b.corePoints, total: b.total });
   return { matchId, outcome: result.outcome, winner: result.winner, teams: { comet: score(result.teams.comet), nova: score(result.teams.nova) } };
 }
-export function toMatchSnapshot(state: MatchState, phase: MatchSnapshotMessage['phase'], frozen: boolean, countdownRemainingMs: number): MatchSnapshotMessage {
+export function toMatchSnapshot(state: MatchState, phase: MatchSnapshotMessage['phase'], frozen: boolean, countdownRemainingMs: number, resumeRemainingMs = 0): MatchSnapshotMessage {
   const crew = (team: TeamId) => {
     const c = state.crews[team];
     return { ...toCrew(c.abilities, state.matchMs), crossings: c.crossings, nextGate: nextGateIndex(c.crossings), carried: c.carried, score: teamScore(c.crossings, c.carried) };
   };
   return {
     type: 'match.state', mode: 'match', matchId: state.matchId, phase, tick: state.tick, matchMs: state.matchMs,
-    remainingMs: Math.max(0, MATCH_DURATION_MS - state.matchMs), countdownRemainingMs, frozen,
+    remainingMs: Math.max(0, MATCH_DURATION_MS - state.matchMs), countdownRemainingMs, frozen, resumeRemainingMs,
     rockets: { comet: toPose(state.crews.comet.rocket.pose), nova: toPose(state.crews.nova.rocket.pose) },
     crews: { comet: crew('comet'), nova: crew('nova') },
     courseCores: state.course.map((c) => ({ available: c.respawnAtMs === null })),

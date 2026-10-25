@@ -3,7 +3,8 @@ import type { AppContext } from '../app';
 import { estimateRenderTime, sampleAt } from '../net/interpolate';
 import { seatRole, seatTeam } from '../room-context';
 import { createArenaCanvas } from './arena-canvas';
-import { ROOM_COPY, seatName } from './copy';
+import { M4_COPY, pausedLine, resumingLine, ROOM_COPY, seatName } from './copy';
+import { pausedSeat } from '../flow';
 import { button, el, setText } from './dom';
 import { controlTestStatus } from './lobby-screen';
 import { teamTag } from './top-bar';
@@ -103,7 +104,15 @@ export function mountRoomWatchScreen(root: HTMLElement, ctx: AppContext): () => 
       const blocker = room.roomState ? startBlocker(room.roomState.seats) : null;
       message = blocker ? startBlockerText(blocker) : room.roomState ? controlTestStatus(room.roomState) : ROOM_COPY.waitingNoTest;
     }
-    else if (room.matchState?.frozen) message = ROOM_COPY.frozenNote;
+    else if (snapshot?.mode === 'match' && snapshot.frozen) {
+      message = snapshot.resumeRemainingMs > 0 ? resumingLine(snapshot.resumeRemainingMs) : pausedLine(room.roomState ? pausedSeat(room.roomState.seats, nowMs - room.roomReceivedAtMs)?.seat ?? null : null);
+    } else if (room.matchState?.frozen) message = ROOM_COPY.frozenNote;
+    // A watcher has no Interrupted screen; the reason shows here instead.
+    if (!running && room.roomState?.phase === 'lobby') {
+      const reason = room.roomState.returnReason;
+      if (reason === 'interrupted') message = M4_COPY.interrupted;
+      else if (reason === 'match-error') message = M4_COPY.matchError;
+    }
     setText(waiting, message);
     waiting.hidden = message === '';
     strip.hidden = !running || snapshot?.mode === 'match';

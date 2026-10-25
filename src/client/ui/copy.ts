@@ -82,7 +82,7 @@ const REJECT_COPY: Record<RejectReason, string | typeof DEVELOPER_ONLY> = {
   'stale-sequence': DEVELOPER_ONLY,
   'no-control-test': DEVELOPER_ONLY,
   'wrong-phase': 'Wait for the lobby to change seats or get ready.',
-  'not-host': 'Waiting for the host to start',
+  'not-host': 'Only the host can do that.',
   'start-blocked': 'All four players need to calibrate and get ready.',
   'not-calibrated': 'Check motion and set neutral before Ready.',
   'not-running': DEVELOPER_ONLY,
@@ -93,6 +93,33 @@ const REJECT_COPY: Record<RejectReason, string | typeof DEVELOPER_ONLY> = {
 
 export function rejectCopy(reason: RejectReason): string | typeof DEVELOPER_ONLY {
   return REJECT_COPY[reason];
+}
+
+// M4 interruption, rematch, and swap copy (PRD 7.7, 7.9; proposed lines are
+// listed in the PRD "Interruptions and rematch (Milestone 4)" block).
+export const M4_COPY = {
+  interruptedTitle: 'Match interrupted',
+  interrupted: "Match interrupted. A player couldn't reconnect.",
+  backToLobby: 'Back to lobby',
+  countdownCancelled: 'Countdown cancelled. Check motion and get ready again.',
+  matchError: 'The match hit a problem and ended with no winner. Start a new one.',
+  rematch: 'Rematch',
+  swapRoles: 'Swap roles',
+  cancelSwap: 'Cancel swap',
+  waitingTeammate: 'Waiting for teammate',
+  wantsSwap: 'Wants to swap',
+  swapHint: 'Both teammates tap Swap roles. Check motion and set neutral before Ready. The host starts the next match when all four are ready.',
+  waitingHost: 'Waiting for the host to start a rematch',
+  holdLabel: 'Seat held',
+} as const;
+
+export function pausedLine(seat: SeatId | null): string {
+  return `Paused · ${seat ? seatName(seat) : 'Crew'} reconnecting`;
+}
+
+// Whole seconds rounded up, so the label never reads 0 while still waiting.
+export function resumingLine(remainingMs: number): string {
+  return `Resuming in ${Math.max(1, Math.ceil(remainingMs / 1000))}…`;
 }
 
 // Shown when a developer-only reason reaches a room request anyway.

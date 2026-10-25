@@ -36,7 +36,7 @@ function world() {
 }
 
 describe('M3 server lifecycle and authorization', () => {
-  it('validates new message schemas without accepting M4 or caller-chosen teams', () => {
+  it('validates new message schemas without accepting caller-chosen teams', () => {
     for (const ready of [null, 1, 'true', [], {}]) expect(validateMessage(JSON.stringify({ type: 'ready.set', requestId: 1, ready }), false)).toMatchObject({ ok: false, reason: 'invalid-value' });
     expect(validateMessage(JSON.stringify({ type: 'ready.set', requestId: 1, ready: true }), false).ok).toBe(true);
     expect(validateMessage(JSON.stringify({ type: 'input.charge', matchId: 1, seq: 1, team: 'nova' }), false)).toMatchObject({ ok: false, reason: 'invalid-field' });
@@ -82,7 +82,7 @@ describe('M3 server lifecycle and authorization', () => {
     expect(w.sim.current(w.code)?.frozen).toBe(true);
     w.advance(5000);
     w.sweep();
-    expect(w.sim.roomStatus(w.code)).toMatchObject({ phase: 'lobby', result: null, returnReason: 'abandoned' });
+    expect(w.sim.roomStatus(w.code)).toMatchObject({ phase: 'lobby', result: null, returnReason: 'interrupted' });
   });
   it('resumes after usable controls and keeps completed results frozen when players leave', () => {
     const w = world();
@@ -93,6 +93,9 @@ describe('M3 server lifecycle and authorization', () => {
     w.send(0, { type: 'seat.reconnect', code: w.code, seat: 'comet-pilot', token });
     expect(w.sim.current(w.code)?.frozen).toBe(true);
     w.send(0, { type: 'setup.update', status: 'calibrated' });
+    // M4: usable controls start the 3-second resume countdown first.
+    expect(w.sim.current(w.code)).toMatchObject({ frozen: true, matchId: id });
+    w.advance(3000);
     expect(w.sim.current(w.code)).toMatchObject({ frozen: false, matchId: id });
     for (let i = 0; i < 910; i += 1) w.advance(100);
     const result = w.sim.roomStatus(w.code).result;

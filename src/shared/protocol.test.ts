@@ -26,11 +26,11 @@ describe('protocol', () => {
     expect(ABILITIES).toEqual(['boost', 'shield']);
   });
 
-  it('has M3 start messages but no M4 rematch or swap', () => {
+  it('has start, rematch, and swap messages', () => {
     expectTypeOf<Extract<ClientMessageType, 'ready.set'>>().toEqualTypeOf<'ready.set'>();
     expectTypeOf<Extract<ClientMessageType, 'match.start'>>().toEqualTypeOf<'match.start'>();
-    expectTypeOf<Extract<ClientMessageType, 'match.rematch'>>().toBeNever();
-    expectTypeOf<Extract<ClientMessageType, 'match.swap'>>().toBeNever();
+    expectTypeOf<Extract<ClientMessageType, 'match.rematch'>>().toEqualTypeOf<'match.rematch'>();
+    expectTypeOf<Extract<ClientMessageType, 'match.swap'>>().toEqualTypeOf<'match.swap'>();
   });
 
   it('carries no positions, energy, scores, or sensor data from clients (Requirement 8.7)', () => {

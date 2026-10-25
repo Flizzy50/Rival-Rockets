@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { screenForPhase } from './flow';
+import { pausedSeat, screenForPhase } from './flow';
+import { SEAT_IDS, type PublicSeat } from '../shared/protocol';
+import { M4_COPY, pausedLine, resumingLine } from './ui/copy';
 import { formatTimer } from './ui/hud';
 import { createPilotPractice, reduceEngineerPractice, stepPilotPractice } from './practice';
 import { createMotionController } from './motion/controller';
@@ -53,5 +55,36 @@ describe('M3 phone models', () => {
     buffer = pushSnapshot(buffer, { matchId: 1, sessionMs: 100, receivedAtMs: 100, poses: { comet: pose(200), nova: pose(320) } });
     expect(sampleAt(buffer, 50, 'comet')?.x).toBe(150);
     expect(sampleAt(buffer, 50, 'nova')?.x).toBe(310);
+  });
+});
+
+describe('M4 interruption flow', () => {
+  it('opens Interrupted only for a seated match screen and lobby otherwise', () => {
+    expect(screenForPhase('lobby', true, 'match', 'interrupted')).toBe('interrupted');
+    expect(screenForPhase('lobby', true, 'match', 'countdown-cancelled')).toBe('lobby');
+    expect(screenForPhase('lobby', true, 'match', 'match-error')).toBe('lobby');
+    expect(screenForPhase('lobby', true, 'interrupted', 'interrupted')).toBeNull();
+    expect(screenForPhase('lobby', true, 'results', null)).toBe('lobby');
+    expect(screenForPhase('countdown', true, 'interrupted', null)).toBe('match');
+  });
+  it('shows the seat with the earliest hold, counted down locally', () => {
+    const seat = (id: (typeof SEAT_IDS)[number], patch: Partial<PublicSeat>): PublicSeat => ({ seat: id, occupantId: 'p', setup: 'calibrated', connected: true, held: false, ready: false, holdRemainingMs: null, swapRequested: false, ...patch });
+    const seats = [
+      seat('comet-pilot', {}),
+      seat('comet-engineer', { connected: false, held: true, holdRemainingMs: 9000 }),
+      seat('nova-pilot', { connected: false, held: true, holdRemainingMs: 4000 }),
+      seat('nova-engineer', { setup: 'unverified', holdRemainingMs: 12000 }),
+    ];
+    expect(pausedSeat(seats, 1000)).toEqual({ seat: 'nova-pilot', holdRemainingMs: 3000 });
+    expect(pausedSeat(seats, 99999)?.holdRemainingMs).toBe(0);
+    expect(pausedSeat(seats.map((s) => ({ ...s, connected: true, setup: 'calibrated' as const })), 0)).toBeNull();
+  });
+});
+
+describe('M4 copy', () => {
+  it('formats the pause and resume lines and keeps the PRD interrupted line', () => {
+    expect(pausedLine('nova-engineer')).toBe('Paused · Nova Engineer reconnecting');
+    expect([3000, 2001, 2000, 1, 0].map(resumingLine)).toEqual(['Resuming in 3…', 'Resuming in 3…', 'Resuming in 2…', 'Resuming in 1…', 'Resuming in 1…']);
+    expect(M4_COPY.interrupted).toBe("Match interrupted. A player couldn't reconnect.");
   });
 });

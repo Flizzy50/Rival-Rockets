@@ -23,8 +23,11 @@ const TWO_PI = 2 * Math.PI;
 const MAX_TURN_RAD_PER_SEC = (MAX_TURN_DEG_PER_SEC * Math.PI) / 180;
 const MS_PER_SEC = 1000;
 
-export function createStartPose(team: TeamId = 'comet'): RocketPose {
-  const lane = START_LANES[team];
+// Lanes alternate on every later match in a room (PRD 4, 8).
+export type LaneOrder = 'comet-upper' | 'comet-lower';
+
+export function createStartPose(team: TeamId = 'comet', lanes: LaneOrder = 'comet-upper'): RocketPose {
+  const lane = START_LANES[lanes === 'comet-upper' ? team : team === 'comet' ? 'nova' : 'comet'];
   return { x: lane.x, y: lane.y, heading: normalizeHeading(lane.heading) };
 }
 

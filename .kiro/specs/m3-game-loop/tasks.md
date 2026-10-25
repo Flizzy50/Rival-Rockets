@@ -19,7 +19,7 @@ Rules for every task:
 The M3 code was written outside this checklist; this audit compared each task with the uncommitted working tree. Checked tasks are implemented. Unchecked tasks carry a **Partial** or **Not done** note. Lint, 304 tests in 37 files, and the build passed at the audit.
 
 - **Screen decision:** `control-screen.ts` serves both the dev control test and the match (design M3-15, revised). There is no `match-screen.ts` or `crew-controls.ts`; tasks 11.1 and 11.3 are rewritten to match.
-- **Open gap that matters:** `server/simulation.ts` does not catch exceptions thrown by a match step (task 7.1). The loop runs inside a `setInterval` in `server/websocket.ts`, so a thrown step would be an uncaught exception and end the Node process with every room.
+- **Step-exception gap (task 7.1):** fixed in M4. A thrown match step now ends only that room's match as `match-error`, and the loop in `server/websocket.ts` is guarded.
 - **Test coverage:** most optional property tasks are covered only by example tests (in `course.test.ts`, `rules/match.test.ts`, `rules/pickups.test.ts`, `server/match.test.ts`, `client/flow.test.ts`) or not at all. None carry the `m3-game-loop` property tags. The four-client integration test (7.8) exists.
 
 ## Tasks

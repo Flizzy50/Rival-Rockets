@@ -4,7 +4,7 @@ import type { TeamId } from '../protocol.js';
 import { activateSelected, applyCharge, clearExpiredEffect, createCrewAbilityState, getAbilityStatus, selectAbility, type CrewAbilityState } from './abilities.js';
 import { ramOutcome, resolveContact } from './collisions.js';
 import type { InputResult, QueuedInput } from './control-test.js';
-import { createStartPose, moveRocket, type RocketState } from './physics.js';
+import { createStartPose, moveRocket, type LaneOrder, type RocketState } from './physics.js';
 import { createCourseCores, expireAndRespawn, resolvePickups, type CourseCoreState, type DroppedCoreState } from './pickups.js';
 import { advanceCrossings, matchResult, type MatchResult } from './scoring.js';
 
@@ -15,7 +15,7 @@ export interface CrewMatchState {
 }
 export interface MatchState {
   readonly matchId: number; readonly tick: number; readonly matchMs: number;
-  readonly lanes: 'comet-upper';
+  readonly lanes: LaneOrder;
   readonly crews: Readonly<Record<TeamId, CrewMatchState>>;
   readonly course: readonly CourseCoreState[]; readonly dropped: readonly DroppedCoreState[];
   readonly inContact: boolean; readonly nextDroppedId: number;
@@ -23,9 +23,9 @@ export interface MatchState {
 }
 export type MatchInput = QueuedInput & { readonly team: TeamId };
 export function matchMsAt(tick: number): number { return Math.floor(tick * 1000 / SIMULATION_HZ); }
-export function createMatch(matchId: number): MatchState {
-  const crew = (team: TeamId): CrewMatchState => ({ rocket: { pose: createStartPose(team), steering: 0, wallSlowUntilMs: null }, abilities: createCrewAbilityState(), crossings: 0, carried: 0, dropsUsed: 0 });
-  return { matchId, tick: 0, matchMs: 0, lanes: 'comet-upper', crews: { comet: crew('comet'), nova: crew('nova') }, course: createCourseCores(), dropped: [], inContact: false, nextDroppedId: 0, complete: false, result: null };
+export function createMatch(matchId: number, lanes: LaneOrder = 'comet-upper'): MatchState {
+  const crew = (team: TeamId): CrewMatchState => ({ rocket: { pose: createStartPose(team, lanes), steering: 0, wallSlowUntilMs: null }, abilities: createCrewAbilityState(), crossings: 0, carried: 0, dropsUsed: 0 });
+  return { matchId, tick: 0, matchMs: 0, lanes, crews: { comet: crew('comet'), nova: crew('nova') }, course: createCourseCores(), dropped: [], inContact: false, nextDroppedId: 0, complete: false, result: null };
 }
 export function neutralMatchSteering(state: MatchState, team: TeamId): MatchState {
   const crew = state.crews[team];
@@ -67,7 +67,7 @@ export function stepMatch(state: MatchState, inputs: readonly MatchInput[]): { s
   const dt = matchMsAt(state.tick + 1) - now;
   for (const team of TEAMS) {
     const crew = crews[team];
-    const rocket = moveRocket(crew.rocket, active[team] === 'boost', now, dt, createStartPose(team));
+    const rocket = moveRocket(crew.rocket, active[team] === 'boost', now, dt, createStartPose(team, state.lanes));
     crews[team] = { ...crew, rocket, crossings: advanceCrossings(crew.crossings, crew.rocket.pose, rocket.pose) };
   }
   const contact = resolveContact({ comet: crews.comet.rocket.pose, nova: crews.nova.rocket.pose }, state.inContact, { comet: active.comet === 'shield', nova: active.nova === 'shield' });
@@ -83,7 +83,7 @@ export function stepMatch(state: MatchState, inputs: readonly MatchInput[]): { s
   }
   for (const team of TEAMS) {
     const crew = crews[team];
-    const contained = containPose(contact[team], createStartPose(team));
+    const contained = containPose(contact[team], createStartPose(team, state.lanes));
     crews[team] = { ...crew, rocket: { ...crew.rocket, pose: contained.pose, wallSlowUntilMs: contained.contact ? now + WALL_SLOW_MS : crew.rocket.wallSlowUntilMs }, crossings: advanceCrossings(crew.crossings, crew.rocket.pose, contained.pose) };
   }
   const pickups = resolvePickups({ paths: { comet: { from: state.crews.comet.rocket.pose, to: crews.comet.rocket.pose }, nova: { from: state.crews.nova.rocket.pose, to: crews.nova.rocket.pose } }, carried: { comet: crews.comet.carried, nova: crews.nova.carried }, course: timers.course, dropped, tick: state.tick, nowMs: now });

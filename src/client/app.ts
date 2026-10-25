@@ -27,13 +27,14 @@ import { mountSetupScreen } from './ui/setup-screen';
 import { mountStartScreen } from './ui/start-screen';
 import { mountWatchScreen } from './ui/watch-screen';
 import { mountPracticeScreen } from './ui/practice-screen';
-import { mountResultsScreen } from './ui/results-screen';
+import { mountInterruptedScreen, mountResultsScreen } from './ui/results-screen';
 import { screenForPhase } from './flow';
 
 export type ScreenName =
   | 'practice'
   | 'match'
   | 'results'
+  | 'interrupted'
   // M2 rooms
   | 'home'
   | 'join'
@@ -104,6 +105,7 @@ const SCREENS: Record<ScreenName, ScreenMount> = {
   practice: mountPracticeScreen,
   match: mountControlScreen,
   results: mountResultsScreen,
+  interrupted: mountInterruptedScreen,
   home: mountHomeScreen,
   join: mountJoinScreen,
   lobby: mountLobbyScreen,
@@ -165,6 +167,7 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
     if (room) return room;
     const next = createRoomContext(window.location);
     let hadSeat = false;
+    let lastSeat: SeatId | null = null;
     offRoom = next.subscribe((event) => {
       if (event.type === 'room-error') fail(event.reason);
       else if (event.type === 'status') {
@@ -175,10 +178,17 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
         const seated = next.seat !== null;
         if (hadSeat && !seated && SEATED_SCREENS.has(current)) ctx.go('lobby');
         hadSeat = seated;
+        // A role swap moves this player to the crewmate's seat: the new role
+        // needs its own setup and practice (PRD 7.7).
+        if (lastSeat !== null && next.seat !== null && next.seat !== lastSeat) {
+          ctx.practiced.clear();
+          ctx.role = seatRole(next.seat);
+        }
+        lastSeat = next.seat;
         if (next.roomState) {
           const own = next.roomState.seats.find((s) => s.seat === next.seat);
           if (seated && own?.setup === 'unverified' && current === 'match' && next.seat) { ctx.startSeat(next.seat); return; }
-          const target = screenForPhase(next.roomState.phase, seated, current);
+          const target = screenForPhase(next.roomState.phase, seated, current, next.roomState.returnReason);
           if (target) ctx.go(target);
         }
       }

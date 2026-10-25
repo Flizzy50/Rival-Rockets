@@ -75,3 +75,21 @@ Target for comparison: p95 ≤ 150 ms (PRD 2). It's a target to measure, not a r
 - [ ] Rotate a phone mid-match: the overlay appears, Pilot steering goes neutral, Engineer selection freezes.
 - [ ] During a four-phone match, record p95 send-to-applied-ack and render delay from the debug panel (AC12 foundation).
 - [ ] Playtest note: with identical straight flight from the start lanes, both rockets reach the top core (420, 106) at the same instant, and the PRD tie rule leaves it uncollected. Note whether this feels wrong in play.
+
+# M4 device test log (interruptions)
+
+Agents did not run any of these checks; they need four physical phones and the deployed site. Use the M3 table columns above and put "M4" in the scenario. Same privacy rules.
+
+## M4 scenario checklist
+
+- [ ] Turn off Wi-Fi on one phone mid-match: every phone shows "Paused · [Seat] reconnecting", a dimmed arena, and a draining 15-second bar; the timer and cores stop.
+- [ ] Turn Wi-Fi back on within 15 s: the phone reconnects, runs motion setup, and after Set neutral every phone shows "Resuming in 3…", then play continues from the same time and score.
+- [ ] Disconnect a second phone during the pause: the pause continues, and the bar follows the earlier deadline.
+- [ ] Disconnect a phone during "Resuming in 3…": the countdown stops and returns to Paused; it restarts in full once everyone is back.
+- [ ] Stay offline past 15 s: seated phones show "Match interrupted" with Back to lobby, the Watch device shows the interrupted line, and the seat reopens.
+- [ ] Reload a phone mid-match within 15 s: it reclaims the seat, runs setup, and the match resumes after the countdown.
+- [ ] Background the browser mid-match, then return: the match pauses (heartbeat timeout) and resumes after setup.
+- [ ] On Results, a non-host sees no Rematch button; the host's Rematch returns everyone to the lobby with Ready cleared and calibration kept.
+- [ ] The next match starts with the lanes swapped (Comet lower).
+- [ ] One crewmate taps Swap roles: "Waiting for teammate". Tapping again cancels. Both tap: they exchange seats, must redo setup and practice, and the host stays the same person.
+- [ ] After a swap, reload a swapped phone: it reclaims its new seat (the new token was saved).

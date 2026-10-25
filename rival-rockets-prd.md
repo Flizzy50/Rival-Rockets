@@ -435,6 +435,16 @@ The voice is short, energetic, and plain: a teammate calling the play, not a man
 | Results headline | "COMET WINS" / "NOVA WINS" / "DRAW" |
 | Results lines | "Gates: [count] × 25 = [points]", "Cores held: [count] × 10 = [points]", "Total: [points]", then the Section 4 explanation |
 | Results action | "Leave room" |
+| **Interruptions and rematch (Milestone 4, proposed until approved)** | |
+| Paused | "Paused · [Seat] reconnecting" with a 15-second bar and **Recalibrate** |
+| Resuming | "Resuming in 3…" / "2…" / "1…" |
+| Interrupted screen | Title "Match interrupted", body "Match interrupted. A player couldn't reconnect.", **Back to lobby** |
+| Server fault (lobby notice) | "The match hit a problem and ended with no winner. Start a new one." |
+| Results actions | **Rematch** (host), **Swap roles** / **Cancel swap**, **Leave room** |
+| Swap pending | "Waiting for teammate"; seat list shows "Wants to swap" |
+| Results, non-host | "Waiting for the host to start a rematch" |
+| Rematch/role-swap hint | The Section 4 hint text |
+| Host-only action refused | "Only the host can do that." |
 
 ### 7.10 Accessibility
 
@@ -469,12 +479,14 @@ The voice is short, energetic, and plain: a teammate calling the play, not a man
 - If the room creator leaves the lobby, another connected player receives the start/rematch controls.
 - Rooms expire after 30 minutes of inactivity. A server restart may end active rooms in the MVP; affected clients must show a clear message and an option to create or join a new room.
 
-**Milestone 3 interim connection behavior (proposed until approved; M4 replaces it).** Until the M4 Paused, Resuming, and Interrupted screens exist:
+**Milestone 4 implementation readings (proposed until approved).** M4 implements this section as written. Where it is silent, the build does this:
 
-- A disconnect or heartbeat timeout during a running match freezes the clock, physics, effects, cooldowns, wall slows, and core timers, and sets the disconnected Pilot's steering to neutral. When all four seats are connected and calibrated again, the match resumes at once, without the three-second resume countdown.
-- A disconnect during the start countdown cancels it and returns everyone to the lobby with no played match.
-- If a seat's 15-second hold expires, or a seat changes occupant, during the countdown or a match, the match is discarded with no result and everyone returns to the lobby with "Match interrupted. A player couldn't reconnect."
-- Results are final in M3: the only action is **Leave room**. Rematch and Swap roles arrive in M4.
+- **Paused and Resuming:** A pause neutralizes both Pilots' steering, not only the disconnected one; steering refreshes at 20 Hz once play resumes. The resume countdown runs on the server's real clock and the match stays frozen through it.
+- **Interrupted:** When a seat deadline expires, the room returns to the lobby at once (so the seat can be filled). Seated phones that were on the match show the Interrupted screen first; **Back to lobby** opens the lobby. Watchers see the interrupted line in the Watch view.
+- **Server fault:** If the server's match step fails, that match ends with no winner and the room returns to the lobby with "The match hit a problem and ended with no winner. Start a new one." Other rooms keep running.
+- **Lane alternation:** Lanes alternate on every match that reached GO, including an Interrupted one. A cancelled start countdown does not count.
+- **Swap roles:** Consent is per player and only on Results. The exchange happens only while both crewmates are connected, and a disconnect withdraws that player's consent. Pending consents clear on Rematch.
+- **Results ready state:** Results show each seat's name with "Wants to swap" or "Disconnected". Ready itself is set in the lobby after the host's Rematch, which clears it.
 
 ### Room and message limits (MVP starting values)
 

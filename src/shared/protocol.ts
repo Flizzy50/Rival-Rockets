@@ -8,7 +8,7 @@ import type { Ability } from './rules/abilities.js';
 // requests, and room/seat actions. No raw sensor data, positions, energy, or
 // scores ever travel from a phone (PRD 8, Requirement 8.7).
 //
-// Rematch and role swaps remain M4; unknown messages are rejected.
+// Unknown messages are rejected.
 
 export type { Ability };
 
@@ -16,7 +16,9 @@ export type TeamId = 'comet' | 'nova';
 export type Role = 'pilot' | 'engineer';
 export type SeatId = `${TeamId}-${Role}`;
 export type RoomPhase = 'lobby' | 'countdown' | 'running' | 'results';
-export type ReturnReason = 'countdown-cancelled' | 'abandoned';
+// Why the room went back to the lobby without a result. "interrupted" is a
+// seat that never came back (PRD 8); "match-error" is a server fault.
+export type ReturnReason = 'countdown-cancelled' | 'interrupted' | 'match-error';
 export type StartStep = 'join' | 'reconnect' | 'calibrate' | 'ready';
 export interface StartBlocker { readonly seat: SeatId; readonly step: StartStep }
 
@@ -107,6 +109,10 @@ export type ClientMessage =
   | { readonly type: 'setup.update'; readonly requestId: number; readonly status: ReportedSetupStatus }
   | { readonly type: 'ready.set'; readonly requestId: number; readonly ready: boolean }
   | { readonly type: 'match.start'; readonly requestId: number }
+  // Host on Results: back to the lobby for a fresh match.
+  | { readonly type: 'match.rematch'; readonly requestId: number }
+  // On Results: toggles this player's consent to swap with the crewmate.
+  | { readonly type: 'match.swap'; readonly requestId: number }
   | { readonly type: 'input.steer'; readonly matchId: number; readonly seq: number; readonly steering: number }
   | { readonly type: 'input.charge'; readonly matchId: number; readonly seq: number }
   // Select carries the ability; activate never does, because the server
@@ -149,6 +155,9 @@ export interface PublicSeat {
   readonly setup: SetupStatus;
   readonly connected: boolean;
   readonly held: boolean;
+  // Time left to come back with usable controls, or null with no hold.
+  readonly holdRemainingMs: number | null;
+  readonly swapRequested: boolean;
 }
 
 // Wire form of the rocket pose: radians, 0 = +x, clockwise positive (y down).
@@ -227,6 +236,8 @@ export interface MatchSnapshotMessage {
   readonly type: 'match.state'; readonly mode: 'match'; readonly matchId: number;
   readonly phase: 'countdown' | 'running' | 'complete'; readonly tick: number; readonly matchMs: number;
   readonly remainingMs: number; readonly countdownRemainingMs: number; readonly frozen: boolean;
+  // Above 0 while a paused match counts down to resume (still frozen).
+  readonly resumeRemainingMs: number;
   readonly rockets: Readonly<Record<TeamId, PublicPose>>;
   readonly crews: Readonly<Record<TeamId, PublicMatchCrew>>;
   readonly courseCores: readonly { readonly available: boolean }[];
@@ -286,6 +297,14 @@ export interface HeartbeatAck {
   readonly type: 'heartbeat.ack';
 }
 
+// Private, to each swapped player: the new seat and its fresh token.
+export interface SeatSwapped {
+  readonly type: 'seat.swapped';
+  readonly code: string;
+  readonly seat: SeatId;
+  readonly token: string;
+}
+
 export type ServerMessage =
   | SessionAccepted
   | RequestAccepted
@@ -294,6 +313,7 @@ export type ServerMessage =
   | InputAck
   | RequestRejected
   | RoomError
-  | HeartbeatAck;
+  | HeartbeatAck
+  | SeatSwapped;
 
 export type ServerMessageType = ServerMessage['type'];

@@ -3,17 +3,18 @@ import type { RejectReason } from '../../shared/protocol';
 import type { AbilityPhase } from '../../shared/rules/abilities';
 import type { AppContext } from '../app';
 import { cooldownRemainingMs, createCrewView, effectRemainingMs, type CrewView } from '../crew-view';
-import { seatLabel } from '../../shared/copy';
+import { SEAT_HOLD_MS } from '../../shared/config';
 import { COUNTDOWN_NUMERAL_MS } from '../../shared/tokens';
+import { pausedSeat } from '../flow';
 import type { ControllerEvent } from '../motion/controller';
 import { estimateRenderTime, sampleAt } from '../net/interpolate';
 import { seatRole, seatTeam, type RoomContext, type RoomEvent } from '../room-context';
 import { holdWakeLock } from '../wake-lock';
 import { createArenaCanvas } from './arena-canvas';
-import { ROOM_COPY } from './copy';
+import { M4_COPY, pausedLine, resumingLine, ROOM_COPY } from './copy';
 import { createCrewStatus } from './crew-status';
 import { createDebugPanel } from './debug-panel';
-import { button, el, setText } from './dom';
+import { button, el, setText, setVar } from './dom';
 import { createEngineerPanel, failureText, type EngineerView } from './engineer-panel';
 import { controlTestStatus } from './lobby-screen';
 import { createPilotPanel } from './pilot-panel';
@@ -79,7 +80,11 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
   countdown.append(numeral, el('p', { text: role === 'pilot' ? 'Tilt to steer' : 'Shake to charge' }));
   countdown.hidden = true;
   const recalibrate = button('Recalibrate', 'btn btn-small', () => { ctx.setupEntry = 'calibrate'; ctx.go('setup'); });
-  const pause = el('div', { className: 'pause-controls' }, recalibrate);
+  // The held seat's 15-second window (PRD 7.7 Paused), drawn from the
+  // server's remaining time.
+  const holdFill = el('span', { className: 'hold-bar-fill' });
+  const holdBar = el('div', { className: 'hold-bar', attrs: { role: 'progressbar', 'aria-label': M4_COPY.holdLabel, 'aria-valuemin': '0', 'aria-valuemax': String(SEAT_HOLD_MS / 1000) } }, holdFill);
+  const pause = el('div', { className: 'pause-controls' }, holdBar, recalibrate);
   pause.hidden = true;
 
   const crewStatus = createCrewStatus();
@@ -193,7 +198,16 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
       countdown.hidden = !counting && !go;
       countdown.classList.toggle('is-go', go);
       setText(numeral, counting ? String(Math.max(1, Math.ceil(snapshot.countdownRemainingMs / COUNTDOWN_NUMERAL_MS))) : 'GO');
+      const resuming = snapshot.frozen && snapshot.resumeRemainingMs > 0;
       pause.hidden = !snapshot.frozen;
+      arena.classList.toggle('is-paused', snapshot.frozen);
+      // Recalibrate is for the pause, not the last seconds before play resumes.
+      recalibrate.hidden = resuming;
+      const held = room.roomState ? pausedSeat(room.roomState.seats, nowMs - room.roomReceivedAtMs) : null;
+      holdBar.hidden = resuming || held?.holdRemainingMs == null;
+      const holdSeconds = Math.ceil((held?.holdRemainingMs ?? 0) / 1000);
+      setVar(holdFill, '--hold', Math.min(1, (held?.holdRemainingMs ?? 0) / SEAT_HOLD_MS));
+      if (holdBar.getAttribute('aria-valuenow') !== String(holdSeconds)) holdBar.setAttribute('aria-valuenow', String(holdSeconds));
     } else if (running) {
       const crew = room.crew;
       canvas.drawPose(pose, { active: crew.active, effectRemainingMs: effectRemainingMs(crew, nowMs) });
@@ -201,8 +215,11 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
     } else {
       canvas.drawEmpty();
     }
-    const missing = room.roomState?.seats.find((s) => !s.connected || s.setup !== 'calibrated');
-    const message = isMatch && snapshot?.frozen ? `Paused · ${missing ? seatLabel(missing.seat) : 'Crew'} reconnecting` : running && !room.matchState?.frozen && room.net.status === 'open' ? '' : waitingText(room);
+    const missing = room.roomState ? pausedSeat(room.roomState.seats, nowMs - room.roomReceivedAtMs) : null;
+    const matchSnap = snapshot?.mode === 'match' ? snapshot : null;
+    const message = isMatch && matchSnap?.frozen
+      ? matchSnap.resumeRemainingMs > 0 ? resumingLine(matchSnap.resumeRemainingMs) : pausedLine(missing?.seat ?? null)
+      : running && !room.matchState?.frozen && room.net.status === 'open' ? '' : waitingText(room);
     setText(waiting, message);
     waiting.hidden = message === '';
     strip.hidden = isMatch || !running;

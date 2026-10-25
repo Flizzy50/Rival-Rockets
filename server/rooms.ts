@@ -5,7 +5,9 @@ import {
   addParticipant,
   claimSeat,
   clearReady,
+  clearSwaps,
   createSeatsState,
+  toggleSwap,
   releaseSeat,
   removeParticipant,
   seatOf,
@@ -61,6 +63,11 @@ export interface RoomStore {
   setSetup(code: string, participantId: string, status: SetupStatus): StoreResult;
   setReady(code: string, participantId: string, ready: boolean): StoreResult;
   clearReady(code: string): void;
+  // Rematch: Ready and swap consents start over; setup is kept (PRD 8).
+  resetForRematch(code: string): void;
+  // On an exchange, both seats get fresh private tokens (PRD 8).
+  swap(code: string, participantId: string): { ok: true; swapped: Array<{ participantId: string; seat: SeatId; token: string }> } | { ok: false; reason: RejectReason };
+  nowMs(): number;
   disconnect(code: string, participantId: string): void;
   reconnect(
     code: string,
@@ -230,6 +237,39 @@ export function createRoomStore(deps: RoomStoreDeps): RoomStore {
     clearReady(code) {
       const room = rooms.get(code);
       if (room) update(room, { seats: clearReady(room.seats) });
+    },
+
+    resetForRematch(code) {
+      const room = rooms.get(code);
+      if (room) update(room, { seats: clearSwaps(clearReady(room.seats)), lastActivityMs: deps.nowMs() });
+    },
+
+    swap(code, participantId) {
+      const room = rooms.get(code);
+      if (!room) return { ok: false, reason: 'room-not-found' };
+      const out = toggleSwap(room.seats, participantId);
+      if (!out.ok) return out;
+      if (!out.swapped) {
+        update(room, { seats: out.state, lastActivityMs: deps.nowMs() });
+        return { ok: true, swapped: [] };
+      }
+      const tokens = { ...room.tokens };
+      const holdUntilMs = { ...room.holdUntilMs };
+      const swapped: Array<{ participantId: string; seat: SeatId; token: string }> = [];
+      for (const seat of SEAT_IDS) {
+        const occupantId = out.state.seats[seat].occupantId;
+        if (occupantId === null || occupantId === room.seats.seats[seat].occupantId) continue;
+        const token = deps.randomToken();
+        tokens[seat] = token;
+        holdUntilMs[seat] = null;
+        swapped.push({ participantId: occupantId, seat, token });
+      }
+      update(room, { seats: out.state, tokens, holdUntilMs, lastActivityMs: deps.nowMs() });
+      return { ok: true, swapped };
+    },
+
+    nowMs() {
+      return deps.nowMs();
     },
 
     disconnect(code, participantId) {

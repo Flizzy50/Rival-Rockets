@@ -164,6 +164,8 @@ export const SHIELD_BUMP_MULTIPLIER = 0.25;
 export const MAX_DROPS_PER_BOOST = 1;
 export const MATCH_DURATION_MS = 90000;
 export const START_COUNTDOWN_MS = 3000;
+// After a pause, play resumes only after this countdown with all four seats usable (PRD 8).
+export const RESUME_COUNTDOWN_MS = 3000;
 // Practice is local and deliberately starts empty (M3 development values).
 export const PRACTICE_RINGS = [{ x: 460, y: 106 }, { x: 498, y: 360 }, { x: 380, y: 694 }] as const;
 export const PRACTICE_RING_RADIUS = 40;

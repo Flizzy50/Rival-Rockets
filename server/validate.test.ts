@@ -83,10 +83,13 @@ describe('validateMessage', () => {
     );
   });
 
-  it('rejects M4 controls as unknown-type', () => {
+  it('accepts rematch and swap with only a requestId', () => {
     for (const type of ['match.rematch', 'match.swap']) {
-      expect(reason({ type, requestId: 1 })).toBe('unknown-type');
+      expect(validateMessage(JSON.stringify({ type, requestId: 1 }), false).ok).toBe(true);
+      expect(reason({ type, requestId: 1, seat: 'nova-pilot' })).toBe('invalid-field');
+      expect(reason({ type })).not.toBeNull();
     }
+    expect(reason({ type: 'match.forfeit', requestId: 1 })).toBe('unknown-type');
   });
 
   it('accepts only reported setup statuses with no extra fields (Requirement 18.2)', () => {

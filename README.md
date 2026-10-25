@@ -8,7 +8,7 @@ Current build:
 - **Milestone 2 shared control**: rooms with a six-character code, share link, and QR; four fixed seats; and a development-only *control test* in which the Comet Pilot and Comet Engineer fly one server-owned rocket from two phones.
 - **Milestone 3 game loop**: a full four-player match. Each player sets up motion, practices their role (local only, nothing is sent), and taps Ready. The host starts a 3-2-1-GO countdown, then both crews race for 90 seconds on the one course: ordered gates, cores, Boost and Shield, boosted rams. Every phone shows the same results. The Watch view shows the whole course.
 
-M3 limits until Milestone 4: a disconnect freezes the match and it resumes as soon as everyone is back (no resume countdown); a lost seat or a disconnect during the countdown returns everyone to the lobby with no result; Results offer only Leave room (no Rematch or Swap roles yet).
+- **Milestone 4 interruptions**: a disconnect pauses the match with a 15-second seat hold; once every seat is back with motion set up, a 3-second countdown resumes play. A hold that runs out ends the match as Interrupted, with no winner. A disconnect during the start countdown cancels it. On Results the host can Rematch (lanes alternate), and both crewmates can tap Swap roles to exchange seats. A server fault ends only that room's match.
 
 The control test still exists for two-phone tuning. It runs only in the lobby, only when the server's control-test flag is on (`--dev`, or `RR_CONTROL_TEST=1`), and starts once both Comet seats are connected and calibrated. Comet players open it from the lobby. It has no score, timer, or result, and starting a match ends it.
 

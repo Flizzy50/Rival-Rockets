@@ -36,7 +36,9 @@ export type Outbound =
   | { readonly kind: 'send'; readonly to: string; readonly message: ServerMessage }
   | { readonly kind: 'room'; readonly code: string; readonly message: ServerMessage }
   // Unbind and close every other connection of this participant (Requirement 5.10).
-  | { readonly kind: 'supersede'; readonly code: string; readonly participantId: string; readonly keep: string };
+  | { readonly kind: 'supersede'; readonly code: string; readonly participantId: string; readonly keep: string }
+  // Private message to whichever connection is bound to this participant.
+  | { readonly kind: 'participant'; readonly code: string; readonly participantId: string; readonly message: ServerMessage };
 
 export interface DispatchDeps {
   readonly rooms: RoomStore;
@@ -89,7 +91,7 @@ function roomChanged(deps: DispatchDeps, code: string): Outbound[] {
   if (!room) return [];
   deps.simulation.sync(code, room.seats);
   const active = deps.simulation.current(code);
-  return [{ kind: 'room', code, message: toRoomState(room, deps.controlTestEnabled, active?.matchId ?? null, deps.simulation.roomStatus(code)) }];
+  return [{ kind: 'room', code, message: toRoomState(room, deps.controlTestEnabled, active?.matchId ?? null, deps.simulation.roomStatus(code), deps.rooms.nowMs()) }];
 }
 
 function toQueued(message: GameplayInput): QueuedInput {
@@ -209,7 +211,7 @@ function handle(deps: DispatchDeps, conn: Connection, message: ClientMessage, no
   }
 }
 
-type InRoomRequest = Extract<ClientMessage, { type: 'room.leave' | 'room.watch' | 'seat.claim' | 'seat.release' | 'setup.update' | 'ready.set' | 'match.start' }>;
+type InRoomRequest = Extract<ClientMessage, { type: 'room.leave' | 'room.watch' | 'seat.claim' | 'seat.release' | 'setup.update' | 'ready.set' | 'match.start' | 'match.rematch' | 'match.swap' }>;
 
 function handleRoomRequest(deps: DispatchDeps, conn: Connection, message: InRoomRequest): Outbound[] {
   const code = conn.code ?? '';
@@ -235,6 +237,22 @@ function handleRoomRequest(deps: DispatchDeps, conn: Connection, message: InRoom
       deps.rooms.clearReady(code);
       deps.rooms.touch(code);
       return accepted();
+    }
+    case 'match.rematch': {
+      const room = deps.rooms.get(code);
+      if (!room || room.seats.hostId !== pid) return reject(conn, message.requestId, 'not-host');
+      if (phase !== 'results') return reject(conn, message.requestId, 'wrong-phase');
+      deps.simulation.rematch(code);
+      deps.rooms.resetForRematch(code);
+      return accepted();
+    }
+    case 'match.swap': {
+      if (phase !== 'results') return reject(conn, message.requestId, 'wrong-phase');
+      const out = deps.rooms.swap(code, pid);
+      if (!out.ok) return reject(conn, message.requestId, out.reason);
+      // New tokens go only to their owners, before the room hears the change.
+      const tokens: Outbound[] = out.swapped.map((s) => ({ kind: 'participant', code, participantId: s.participantId, message: { type: 'seat.swapped', code, seat: s.seat, token: s.token } }));
+      return [send(conn, { type: 'request.accepted', requestId: message.requestId }), ...tokens, ...roomChanged(deps, code)];
     }
     case 'seat.claim': {
       const out = deps.rooms.claim(code, pid, message.seat);
