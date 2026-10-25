@@ -31,7 +31,7 @@ Out of scope: pause/resume countdown, the Interrupted phase and screen, rematch,
 | M3-12 | Pickups use each rocket's straight segment from its start-of-step center to its end-of-step center. The contact time is the earliest fraction t in [0, 1] at which the center is within 31 units. Cores resolve greedily in increasing t, with capacity updated as cores are given; an exact t tie between two eligible rockets leaves the core that step. | Implements the PRD earliest-swept-contact and exact-tie rules deterministically, including a rocket that reaches two cores in one step near capacity. |
 | M3-13 | Results are terminal in M3: the Results screen offers Leave room only. Rematch and Swap roles arrive in M4. | PRD 12 puts rematch in M4. A placeholder button would invent behavior. |
 | M3-14 | No event stream in M3. Scores, pips, next gate, and core ownership come from snapshots. Section 7.8 bursts ("+25", BLOCKED, sparks) are M5. | Keeps the wire contract small; M5 can add `match.events` without changing snapshots. |
-| M3-15 | A new `match-screen.ts` serves the countdown (as a full-screen overlay), the running match, and the frozen state. `control-screen.ts` stays for the dev control test. Shared crew input handling moves to `crew-controls.ts`. | One screen avoids remounting the canvas at GO. Extraction avoids duplicating the M2 input logic. |
+| M3-15 | `control-screen.ts` serves both the dev control test and the match. `app.ts` mounts it for the `control` and `match` screens; at mount it picks the mode from the room phase. Match mode shows the HUD, the countdown as a full-screen overlay, the running match, the frozen note, and both crews' controls. Control-test mode shows the M2 top bar, the CONTROL TEST strip, and Comet only. Crew input handling stays in that file, so there is no `match-screen.ts` or `crew-controls.ts`. (Revised October 25, 2026, at the M3 audit; the original plan split them.) | One screen avoids remounting the canvas at GO, and one copy of the input logic avoids duplication without an extraction. The combined screen was already built and passes the four-client integration test; splitting it is a refactor with no behavior change, so it waits until M4/M5 work makes the file hard to change. |
 | M3-16 | `match.state` becomes a union on `mode`: the unchanged control-test snapshot and the new match snapshot. The frozen result travels in `room.state`, so a reconnecting phone on Results gets it with the room. | Every device reads the same serialized result object (AC8). |
 | M3-17 | Course data (walls, gates, spawns, lanes) are named constants in `src/shared/config.ts`; geometry functions live in `src/shared/course.ts`. Collisions get `rules/collisions.ts`; the implementation plan's `physics.ts` keeps movement only. | AGENTS.md: numbers in one config module. A separate collisions module keeps physics small and testable. |
 | M3-18 | Drawing proportions (capsule, fins, dotted trail, marker shapes) are named constants in `arena-geometry.ts`, as in M2. UI sizes and timings (minimum core size, final warning, YOU tag, countdown numeral, marker sizes) go in `tokens.ts`. | Follows the M2 precedent and AGENTS.md token rule. |
@@ -140,14 +140,12 @@ src/client/
   ui/arena-geometry.ts   [change] capsule, fins, dots, round-rect path, edge markers
   ui/arena-canvas.ts     [change] course layer, gates, cores, two rockets, halo, YOU tag, markers
   ui/hud.ts              [new] scores, timer, pips, own-team marker
-  ui/crew-controls.ts    [new] engineer/pilot input handling extracted from control-screen
-  ui/match-screen.ts     [new] countdown overlay, HUD, chase arena, role panel, frozen note
   ui/practice-screen.ts  [new] tutorial, PRACTICE watermark, pilot rings or engineer steps, Skip
   ui/results-screen.ts   [new] headline, breakdown, explanation, Leave room
   ui/lobby-screen.ts     [change] Ready toggle, Start, blockers, notices, control test button
   ui/room-watch-screen.ts [change] full course, both rockets, HUD
   ui/setup-screen.ts     [change] go to practice or match after calibration
-  ui/control-screen.ts   [change] use crew-controls; control-test snapshot only
+  ui/control-screen.ts   [change] dev control test and match screen (M3-15): HUD, countdown overlay, chase arena, role panel, frozen note
   ui/copy.ts             [change] M3 copy and reason copy
 docs/device-test-log.md  [change] M3 checklist and row template
 rival-rockets-prd.md     [change] 7.9 M3 copy block; proposed Section 4/8 clarifications
@@ -453,7 +451,7 @@ export function reduceEngineerPractice(p: EngineerPractice, event: ControllerEve
 | Match | HUD, chase arena (own crew), role panel. Countdown overlay with 3/2/1 from `countdownRemainingMs`, role reminder, GO for `COUNTDOWN_NUMERAL_MS` after running. Frozen note "Paused · [Seat] reconnecting" (assertive) with Recalibrate. Wake lock held. |
 | Results | Headline (team color + silhouette, or DRAW), per-team gates/cores/total lines, results note, Leave room; polite announcement. |
 | Watch | Room code, seats, HUD, fixed full course with both rockets, cores, both next gates with team glyphs; waiting text when nothing runs. |
-| Control (dev) | M2 behavior, opened from the lobby button; reads only control-test snapshots. |
+| Control (dev) | M2 behavior, opened from the lobby button; same file as Match (M3-15), in control-test mode when mounted in the lobby phase. |
 
 ### Client: `ui/hud.ts`
 

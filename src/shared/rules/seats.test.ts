@@ -50,7 +50,7 @@ describe('seats', () => {
     const s = createSeatsState(person('a', 0));
     expect(SEAT_IDS).toHaveLength(SEAT_COUNT);
     expect(Object.keys(s.seats).sort()).toEqual([...SEAT_IDS].sort());
-    for (const seat of SEAT_IDS) expect(s.seats[seat]).toEqual({ occupantId: null, setup: 'unverified', held: false });
+    for (const seat of SEAT_IDS) expect(s.seats[seat]).toEqual({ occupantId: null, setup: 'unverified', held: false, ready: false });
     expect(s.hostId).toBe('a');
   });
 
@@ -92,7 +92,7 @@ describe('seats', () => {
     let s = ok(claimSeat(fullRoom(), 'a', 'comet-pilot'));
     s = withSeat(s, 'comet-pilot', { setup: 'calibrated' });
     const next = ok(releaseSeat(s, 'a'));
-    expect(next.seats['comet-pilot']).toEqual({ occupantId: null, setup: 'unverified', held: false });
+    expect(next.seats['comet-pilot']).toEqual({ occupantId: null, setup: 'unverified', held: false, ready: false });
     expect(next.hostId).toBe('a');
   });
 

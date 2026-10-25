@@ -39,6 +39,7 @@ function world(controlTestEnabled = true): World {
     randomToken: () => `tok${String((tokens += 1)).padStart(19, '0')}`,
   });
   const simulation = createSimulation({
+    roomChanged: () => undefined,
     nowMs: () => now.ms,
     sendTo: (to, message) => simOut.push({ to, message }),
     broadcast: (code, message) => simOut.push({ to: `room:${code}`, message }),
@@ -225,6 +226,8 @@ describe('dispatch', () => {
     const out = w.send(fresh, { type: 'seat.reconnect', requestId: rid(), code, seat: 'comet-pilot', token });
     expect(out[0]).toEqual({ kind: 'supersede', code, participantId: 'p0', keep: 'pilot-2' });
     expect(only(out, fresh)).toMatchObject({ type: 'session.accepted', seat: 'comet-pilot', token: null });
+    expect(w.deps.simulation.current(code)?.frozen).toBe(true);
+    w.send(fresh, { type: 'setup.update', requestId: 2, status: 'calibrated' });
     expect(w.deps.simulation.current(code)?.frozen).toBe(false);
   });
 

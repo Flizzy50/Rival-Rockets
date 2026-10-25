@@ -100,6 +100,8 @@ const SCHEMAS: Readonly<Record<ClientMessageType, Readonly<Record<string, FieldC
   'seat.release': { requestId: counter },
   'seat.reconnect': { requestId: counter, code, seat: oneOf(SEAT_IDS), token },
   'setup.update': { requestId: counter, status: oneOf(REPORTED_SETUP_STATUSES) },
+  'ready.set': { requestId: counter, ready: (v) => typeof v === 'boolean' ? pass(v) : fail('invalid-value') },
+  'match.start': { requestId: counter },
   'input.steer': { matchId: counter, seq: counter, steering },
   'input.charge': { matchId: counter, seq: counter },
   // The ability field is handled per intent below.

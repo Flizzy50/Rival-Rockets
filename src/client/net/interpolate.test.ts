@@ -25,7 +25,7 @@ function angleDiff(a: number, b: number): number {
 }
 
 function snap(sessionMs: number, x: number, receivedAtMs = sessionMs, matchId = 1): Snapshot {
-  return { matchId, sessionMs, receivedAtMs, pose: { x, y: 0, heading: 0 } };
+  return { matchId, sessionMs, receivedAtMs, poses: { comet: { x, y: 0, heading: 0 } } };
 }
 
 describe('interpolation', () => {
@@ -71,7 +71,7 @@ describe('interpolation', () => {
     expect(buf.snapshots.map((s) => s.matchId)).toEqual([2]);
     for (let i = 1; i <= SNAPSHOT_BUFFER_SIZE + 5; i += 1) buf = pushSnapshot(buf, snap(i * 10, i, 130 + i * 10, 2));
     expect(buf.snapshots).toHaveLength(SNAPSHOT_BUFFER_SIZE);
-    expect(newestSnapshot(buf)?.pose.x).toBe(SNAPSHOT_BUFFER_SIZE + 5);
+    expect(newestSnapshot(buf)?.poses.comet?.x).toBe(SNAPSHOT_BUFFER_SIZE + 5);
   });
 
   // Feature: m2-shared-control, Property 23: Render time never runs ahead of received data

@@ -123,7 +123,7 @@ export function createRoomContext(
       roomState = m;
       // A seat that is gone cannot be reclaimed, so its token is useless.
       if (hadSeat !== null && ownSeat() === null) clearSession();
-      if (m.activeMatchId === null) {
+      if (m.activeMatchId === null || (matchState && m.activeMatchId !== matchState.matchId)) {
         matchState = null;
         buffer = createBuffer();
       }
@@ -135,15 +135,16 @@ export function createRoomContext(
       const previous = matchState;
       // Session time jumps against local time on a new test or a freeze
       // change, so the clock estimate starts over (design: interpolate.ts).
-      if (!previous || previous.matchId !== m.matchId || previous.frozen !== m.frozen) {
+      if (!previous || previous.matchId !== m.matchId || previous.frozen !== m.frozen || (previous.mode === 'match' && m.mode === 'match' && previous.phase !== m.phase)) {
         buffer = createBuffer();
         lastRenderedSessionMs = Number.NEGATIVE_INFINITY;
       }
       if (!previous || previous.matchId !== m.matchId) crew = createCrewView();
       matchState = m;
       const now = performance.now();
-      buffer = pushSnapshot(buffer, { matchId: m.matchId, sessionMs: m.sessionMs, pose: m.pose, receivedAtMs: now });
-      crew = reduceCrewView(crew, { type: 'snapshot', crew: m.crew, nowMs: now });
+      buffer = pushSnapshot(buffer, { matchId: m.matchId, sessionMs: m.mode === 'match' ? m.matchMs : m.sessionMs, poses: m.mode === 'match' ? m.rockets : { comet: m.pose }, receivedAtMs: now });
+      const own = ownSeat();
+      crew = reduceCrewView(crew, { type: 'snapshot', crew: m.mode === 'match' ? m.crews[own ? seatTeam(own) : 'comet'] : m.crew, nowMs: now });
       emit({ type: 'match' });
     }),
     net.on('input.ack', (m) => {
@@ -189,6 +190,7 @@ export function createRoomContext(
     },
     get liveMatchId() {
       if (!roomState || roomState.activeMatchId === null || !matchState || matchState.frozen) return null;
+      if (matchState.mode === 'match' && (roomState.phase !== 'running' || matchState.phase !== 'running')) return null;
       return matchState.matchId === roomState.activeMatchId ? matchState.matchId : null;
     },
     whenOpen() {

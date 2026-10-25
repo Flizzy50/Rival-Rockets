@@ -1,5 +1,5 @@
-import { BROADCAST_INTERVAL_MS, STEP_MS } from '../src/shared/config.js';
-import type { RejectReason, ServerMessage } from '../src/shared/protocol.js';
+import { BROADCAST_INTERVAL_MS, START_COUNTDOWN_MS, STEP_MS } from '../src/shared/config.js';
+import { SEAT_IDS, type PublicMatchResult, type RejectReason, type ReturnReason, type RoomPhase, type SeatId, type ServerMessage } from '../src/shared/protocol.js';
 import {
   createControlTest,
   stepControlTest,
@@ -9,7 +9,8 @@ import {
 } from '../src/shared/rules/control-test.js';
 import { cometCrewReady, type SeatsState } from '../src/shared/rules/seats.js';
 import { MAX_CATCH_UP_STEPS } from './config.js';
-import { rejectedAck, toAck, toMatchState } from './public-view.js';
+import { rejectedAck, toAck, toMatchState, toMatchAck, toMatchSnapshot, toPublicResult } from './public-view.js';
+import { createMatch, neutralMatchSteering, stepMatch, type MatchInput, type MatchState } from '../src/shared/rules/match.js';
 
 // Simulation (Requirements 16, 17): owns each room's control test, its input
 // queue, and the fixed-step accumulator. The clock and outbound channels are
@@ -20,9 +21,12 @@ export interface SimulationDeps {
   sendTo(connectionId: string, message: ServerMessage): void;
   broadcast(code: string, message: ServerMessage): void;
   readonly controlTestEnabled: boolean;
+  roomChanged(code: string): void;
 }
 
 export interface ControlTestInfo {
+  readonly mode: 'control-test' | 'match';
+  readonly accepting: boolean;
   readonly matchId: number;
   readonly frozen: boolean;
 }
@@ -30,10 +34,12 @@ export interface ControlTestInfo {
 export type LifecycleChange = 'started' | 'frozen' | 'resumed' | 'ended' | null;
 
 export interface Simulation {
+  startMatch(code: string, seats: SeatsState): void;
+  roomStatus(code: string): { phase: RoomPhase; result: PublicMatchResult | null; returnReason: ReturnReason | null };
   // Re-evaluates start, freeze, resume, and end after any seat change.
   sync(code: string, seats: SeatsState): LifecycleChange;
   // Null when queued; otherwise why the input was refused.
-  enqueue(code: string, connectionId: string, input: QueuedInput): RejectReason | null;
+  enqueue(code: string, connectionId: string, input: QueuedInput | MatchInput): RejectReason | null;
   current(code: string): ControlTestInfo | null;
   // One loop pass: run due steps, send acks, and broadcast when due.
   tick(): void;
@@ -52,6 +58,13 @@ interface Runtime {
   readonly engineerId: string;
 }
 
+interface MatchRuntime {
+  state: MatchState; phase: 'countdown' | 'running' | 'results'; frozen: boolean;
+  queue: Array<{ input: MatchInput; connectionId: string }>;
+  countdownEndsAtMs: number; accumulatorMs: number; lastLoopMs: number; nextBroadcastMs: number;
+  occupants: Record<SeatId, string | null>;
+}
+
 // The flag is read from argv and env here, not inside the loop, so tests can
 // pass any combination (Requirement 17.3).
 export function controlTestFlag(argv: readonly string[], env: { RR_CONTROL_TEST?: string | undefined }): boolean {
@@ -60,6 +73,8 @@ export function controlTestFlag(argv: readonly string[], env: { RR_CONTROL_TEST?
 
 export function createSimulation(deps: SimulationDeps): Simulation {
   const runtimes = new Map<string, Runtime>();
+  const matches = new Map<string, MatchRuntime>();
+  const returnReasons = new Map<string, ReturnReason>();
   let nextMatchId = 1;
 
   function rejectQueue(runtime: Runtime, reason: RejectReason): void {
@@ -88,8 +103,64 @@ export function createSimulation(deps: SimulationDeps): Simulation {
     });
   }
 
+  function rejectMatchQueue(runtime: MatchRuntime): void {
+    for (const item of runtime.queue) deps.sendTo(item.connectionId, rejectedAck(runtime.state.matchId, item.input.seq, 'not-running'));
+    runtime.queue = [];
+  }
+  function broadcastMatch(code: string, runtime: MatchRuntime): void {
+    deps.broadcast(code, toMatchSnapshot(runtime.state, runtime.phase === 'results' ? 'complete' : runtime.phase, runtime.frozen, runtime.phase === 'countdown' ? Math.max(0, runtime.countdownEndsAtMs - deps.nowMs()) : 0));
+  }
+
   return {
+    startMatch(code, seats) {
+      const control = runtimes.get(code);
+      if (control) end(code, control);
+      const now = deps.nowMs();
+      const occupants = Object.fromEntries(SEAT_IDS.map((seat) => [seat, seats.seats[seat].occupantId])) as Record<SeatId, string | null>;
+      const runtime: MatchRuntime = { state: createMatch(nextMatchId++), phase: 'countdown', frozen: false, queue: [], countdownEndsAtMs: now + START_COUNTDOWN_MS, accumulatorMs: 0, lastLoopMs: now, nextBroadcastMs: now, occupants };
+      matches.set(code, runtime);
+      returnReasons.delete(code);
+      broadcastMatch(code, runtime);
+    },
+
+    roomStatus(code) {
+      const match = matches.get(code);
+      return { phase: match?.phase ?? 'lobby', result: match?.state.result ? toPublicResult(match.state.result, match.state.matchId) : null, returnReason: returnReasons.get(code) ?? null };
+    },
+
     sync(code, seats) {
+      const match = matches.get(code);
+      if (match) {
+        if (match.phase === 'results') return null;
+        const changed = SEAT_IDS.some((s) => seats.seats[s].occupantId !== match.occupants[s]);
+        const usable = SEAT_IDS.every((s) => {
+          const slot = seats.seats[s];
+          return slot.occupantId !== null && seats.participants.get(slot.occupantId)?.connected && slot.setup === 'calibrated';
+        });
+        if (changed || (match.phase === 'countdown' && !usable)) {
+          rejectMatchQueue(match);
+          matches.delete(code);
+          returnReasons.set(code, changed ? 'abandoned' : 'countdown-cancelled');
+          return 'ended';
+        }
+        if (!usable) {
+          for (const team of ['comet', 'nova'] as const) match.state = neutralMatchSteering(match.state, team);
+          if (!match.frozen) {
+            match.frozen = true;
+            match.accumulatorMs = 0;
+            rejectMatchQueue(match);
+            broadcastMatch(code, match);
+            return 'frozen';
+          }
+        } else if (match.frozen) {
+          match.frozen = false;
+          match.lastLoopMs = deps.nowMs();
+          match.accumulatorMs = 0;
+          broadcastMatch(code, match);
+          return 'resumed';
+        }
+        return null;
+      }
       const runtime = runtimes.get(code);
       const pilotId = seats.seats['comet-pilot'].occupantId;
       const engineerId = seats.seats['comet-engineer'].occupantId;
@@ -141,6 +212,13 @@ export function createSimulation(deps: SimulationDeps): Simulation {
     },
 
     enqueue(code, connectionId, input) {
+      const match = matches.get(code);
+      if (match) {
+        if (match.phase !== 'running' || match.frozen) return 'not-running';
+        if (!('team' in input)) return 'not-authorized';
+        match.queue.push({ input, connectionId });
+        return null;
+      }
       const runtime = runtimes.get(code);
       // Frozen time cannot apply anything, and queuing would replay stale
       // input on resume.
@@ -150,12 +228,52 @@ export function createSimulation(deps: SimulationDeps): Simulation {
     },
 
     current(code) {
+      const match = matches.get(code);
+      if (match) return { mode: 'match', matchId: match.state.matchId, frozen: match.frozen, accepting: match.phase === 'running' && !match.frozen };
       const runtime = runtimes.get(code);
-      return runtime ? { matchId: runtime.state.matchId, frozen: runtime.frozen } : null;
+      return runtime ? { mode: 'control-test', matchId: runtime.state.matchId, frozen: runtime.frozen, accepting: !runtime.frozen } : null;
     },
 
     tick() {
       const now = deps.nowMs();
+      for (const [code, runtime] of matches) {
+        if (runtime.phase === 'results') continue;
+        if (runtime.phase === 'countdown') {
+          if (now >= runtime.countdownEndsAtMs) {
+            runtime.phase = 'running';
+            runtime.lastLoopMs = now;
+            runtime.accumulatorMs = 0;
+            broadcastMatch(code, runtime);
+            deps.roomChanged(code);
+          } else if (now >= runtime.nextBroadcastMs) {
+            broadcastMatch(code, runtime);
+            runtime.nextBroadcastMs = now + BROADCAST_INTERVAL_MS;
+          }
+          continue;
+        }
+        if (runtime.frozen) { runtime.lastLoopMs = now; continue; }
+        runtime.accumulatorMs += Math.max(0, now - runtime.lastLoopMs);
+        runtime.lastLoopMs = now;
+        let steps = 0;
+        while (runtime.accumulatorMs >= STEP_MS && steps < MAX_CATCH_UP_STEPS && !runtime.state.complete) {
+          const batch = runtime.queue;
+          runtime.queue = [];
+          const out = stepMatch(runtime.state, batch.map((b) => b.input));
+          runtime.state = out.state;
+          out.results.forEach((result, i) => { const item = batch[i]; if (item) deps.sendTo(item.connectionId, toMatchAck(runtime.state, item.input.team, result)); });
+          runtime.accumulatorMs -= STEP_MS;
+          steps += 1;
+        }
+        if (runtime.accumulatorMs >= STEP_MS) runtime.accumulatorMs = 0;
+        if (runtime.state.complete) {
+          runtime.phase = 'results';
+          broadcastMatch(code, runtime);
+          deps.roomChanged(code);
+        } else if (steps > 0 && now >= runtime.nextBroadcastMs) {
+          broadcastMatch(code, runtime);
+          runtime.nextBroadcastMs = now + BROADCAST_INTERVAL_MS;
+        }
+      }
       for (const [code, runtime] of runtimes) {
         if (runtime.frozen) {
           runtime.lastLoopMs = now;
@@ -185,6 +303,10 @@ export function createSimulation(deps: SimulationDeps): Simulation {
     remove(code) {
       const runtime = runtimes.get(code);
       if (runtime) end(code, runtime);
+      const match = matches.get(code);
+      if (match) rejectMatchQueue(match);
+      matches.delete(code);
+      returnReasons.delete(code);
     },
   };
 }

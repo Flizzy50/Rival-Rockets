@@ -7,6 +7,9 @@ import { DEVELOPER_ONLY, FALLBACK_REJECT, rejectCopy, ROOM_COPY, waitingFor } fr
 import { button, el, setText } from './dom';
 import { checkIcon, cometGlyphIcon, lightningBoltIcon, novaGlyphIcon, steeringArrowIcon } from './icons';
 import { createQrSvg } from './qr';
+import { startBlocker } from '../../shared/rules/seats';
+import { startBlockerText } from '../../shared/copy';
+import type { RoomRequestWithoutId } from '../../shared/protocol';
 
 // Lobby (PRD 6, 7.7): room code, QR, share link, two team columns with Pilot
 // and Engineer seat cards, Watch, and Leave. Names render as textContent only
@@ -80,12 +83,20 @@ export function mountLobbyScreen(root: HTMLElement, ctx: AppContext): () => void
     const seat = room.seat;
     if (seat === null) return;
     const s = room.roomState?.seats.find((x) => x.seat === seat);
-    if (s?.setup === 'calibrated') ctx.go('control');
+    if (s?.setup === 'calibrated' && ctx.neutralDeg !== null) ctx.go('practice');
     else ctx.startSeat(seat);
   });
   const releaseButton = button(ROOM_COPY.release, 'btn btn-secondary', () => {
-    room.request({ type: 'seat.release' }).catch(() => undefined);
+    void request({ type: 'seat.release' });
   });
+  const readyButton = button('Ready', 'btn btn-primary', () => {
+    const slot = room.roomState?.seats.find((s) => s.seat === room.seat);
+    void request({ type: 'ready.set', ready: !slot?.ready });
+  });
+  const startButton = button('Start', 'btn btn-primary', () => void request({ type: 'match.start' }));
+  const recalibrateButton = button('Recalibrate', 'btn btn-secondary', () => { ctx.setupEntry = 'calibrate'; ctx.go('setup'); });
+  const controlButton = button(ROOM_COPY.controlTestLabel, 'btn btn-secondary', () => ctx.go('control'));
+  const notice = el('p', { className: 'caption', attrs: { 'aria-live': 'polite' } });
 
   root.append(
     el(
@@ -102,9 +113,12 @@ export function mountLobbyScreen(root: HTMLElement, ctx: AppContext): () => void
         shareStatus,
       ),
       status,
+      notice,
       el('div', { className: 'team-columns' }, teamColumn('comet', cards), teamColumn('nova', cards)),
       errorLine,
       continueButton,
+      el('div', { className: 'button-row' }, readyButton, startButton, recalibrateButton),
+      controlButton,
       el(
         'div',
         { className: 'button-row' },
@@ -114,6 +128,18 @@ export function mountLobbyScreen(root: HTMLElement, ctx: AppContext): () => void
       ),
     ),
   );
+
+  async function request(message: RoomRequestWithoutId): Promise<void> {
+    errorLine.textContent = '';
+    try {
+      const reply = await room?.request(message);
+      if (reply?.type === 'request.rejected') {
+        const blocker = room?.roomState ? startBlocker(room.roomState.seats) : null;
+        const copy = reply.reason === 'start-blocked' && blocker ? startBlockerText(blocker) : rejectCopy(reply.reason);
+        errorLine.textContent = copy === DEVELOPER_ONLY ? FALLBACK_REJECT : copy;
+      }
+    } catch { errorLine.textContent = FALLBACK_REJECT; }
+  }
 
   async function onSeat(seat: SeatId): Promise<void> {
     errorLine.textContent = '';
@@ -133,6 +159,7 @@ export function mountLobbyScreen(root: HTMLElement, ctx: AppContext): () => void
 
   async function watch(): Promise<void> {
     if (!room) return;
+    if (room.seat === null) { ctx.go('room-watch'); return; }
     try {
       const reply = await room.request({ type: 'room.watch' });
       if (reply.type !== 'request.rejected') ctx.go('room-watch');
@@ -177,6 +204,9 @@ export function mountLobbyScreen(root: HTMLElement, ctx: AppContext): () => void
     } else if (!s.connected) {
       statusText = ROOM_COPY.disconnected;
       tone = 'warn';
+    } else if (s.ready) {
+      statusText = 'Ready';
+      tone = 'ok';
     } else if (s.setup === 'calibrated') {
       statusText = ROOM_COPY.calibrated;
       tone = 'ok';
@@ -190,7 +220,7 @@ export function mountLobbyScreen(root: HTMLElement, ctx: AppContext): () => void
     card.element.dataset.tone = tone;
     card.element.classList.toggle('is-mine', mine);
     // Only an open seat is tappable, and only for an unseated player.
-    card.element.disabled = s.occupantId !== null || mySeat !== null;
+    card.element.disabled = state.phase !== 'lobby' || s.occupantId !== null || mySeat !== null;
     card.element.setAttribute(
       'aria-label',
       `${seatRole(s.seat) === 'pilot' ? 'Pilot' : 'Engineer'}, ${TEAM[seatTeam(s.seat)].label}: ${occupant ? occupant.name : ''} ${statusText}`.trim(),
@@ -202,9 +232,22 @@ export function mountLobbyScreen(root: HTMLElement, ctx: AppContext): () => void
     if (!state) return;
     const mySeat = room?.seat ?? null;
     for (const s of state.seats) renderSeat(s, state, mySeat);
-    setText(status, controlTestStatus(state));
-    continueButton.hidden = mySeat === null;
-    releaseButton.hidden = mySeat === null;
+    const blocker = startBlocker(state.seats);
+    setText(status, state.phase !== 'lobby' ? 'A match is running. Watch it?' : blocker ? startBlockerText(blocker) : 'Waiting for the host to start');
+    setText(notice, state.returnReason === 'abandoned' ? "Match interrupted. A player couldn't reconnect." : state.returnReason === 'countdown-cancelled' ? 'Countdown cancelled. Check motion and get ready again.' : '');
+    const practiced = mySeat !== null && ctx.practiced.has(mySeat);
+    const calibrated = state.seats.find((s) => s.seat === mySeat)?.setup === 'calibrated';
+    const ready = state.seats.find((s) => s.seat === mySeat)?.ready === true;
+    continueButton.hidden = mySeat === null || practiced || state.phase !== 'lobby';
+    setText(continueButton, calibrated ? 'Practice' : 'Continue setup');
+    readyButton.hidden = mySeat === null || !practiced || !calibrated || state.phase !== 'lobby';
+    readyButton.setAttribute('aria-pressed', String(ready));
+    setText(readyButton, ready ? '✓ Ready' : 'Ready');
+    startButton.hidden = state.hostId !== room?.participantId || state.phase !== 'lobby';
+    startButton.disabled = blocker !== null;
+    recalibrateButton.hidden = mySeat === null || !calibrated || state.phase !== 'lobby';
+    releaseButton.hidden = mySeat === null || state.phase !== 'lobby';
+    controlButton.hidden = state.phase !== 'lobby' || !state.controlTestEnabled || state.activeMatchId === null || mySeat === null || seatTeam(mySeat) !== 'comet';
   }
 
   render();

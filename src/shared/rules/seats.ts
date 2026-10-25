@@ -1,5 +1,5 @@
 import { ACTIVE_PLAYERS } from '../config.js';
-import { SEAT_IDS, type Intent, type RejectReason, type SeatId, type SetupStatus } from '../protocol.js';
+import { SEAT_IDS, type Intent, type RejectReason, type SeatId, type SetupStatus, type StartBlocker } from '../protocol.js';
 
 // Seat and host rules (PRD 1, 8). Pure: clocks and ordering arrive as plain
 // numbers in the state, and every operation returns a new state, so the
@@ -17,6 +17,7 @@ export interface SeatParticipant {
 }
 
 export interface SeatSlot {
+  readonly ready: boolean;
   readonly occupantId: string | null;
   readonly setup: SetupStatus;
   // Held for a disconnected occupant (PRD 8); the occupant keeps the seat.
@@ -36,7 +37,7 @@ export type SeatResult =
 
 const COMET_SEATS = ['comet-pilot', 'comet-engineer'] as const satisfies readonly SeatId[];
 
-const OPEN_SEAT: SeatSlot = { occupantId: null, setup: 'unverified', held: false };
+const OPEN_SEAT: SeatSlot = { occupantId: null, setup: 'unverified', held: false, ready: false };
 
 function openSeats(): Record<SeatId, SeatSlot> {
   const seats = {} as Record<SeatId, SeatSlot>;
@@ -94,7 +95,7 @@ export function claimSeat(s: SeatsState, participantId: string, seat: SeatId): S
     ok: true,
     state: {
       ...s,
-      seats: { ...s.seats, [seat]: { occupantId: participantId, setup: 'unverified', held: false } },
+      seats: { ...s.seats, [seat]: { occupantId: participantId, setup: 'unverified', held: false, ready: false } },
       hostId: s.hostId ?? participantId,
     },
   };
@@ -133,7 +134,7 @@ export function setSeatSetup(s: SeatsState, participantId: string, status: Setup
   const seat = seatOf(s, participantId);
   if (seat === null) return { ok: false, reason: 'not-seated' };
   if (s.seats[seat].setup === status) return { ok: true, state: s };
-  return { ok: true, state: { ...s, seats: { ...s.seats, [seat]: { ...s.seats[seat], setup: status } } } };
+  return { ok: true, state: { ...s, seats: { ...s.seats, [seat]: { ...s.seats[seat], setup: status, ready: status === 'calibrated' && s.seats[seat].ready } } } };
 }
 
 // A disconnected occupant keeps the seat, marked held, so nobody else can take
@@ -149,7 +150,7 @@ export function setConnected(s: SeatsState, participantId: string, connected: bo
     connectedSince: connected && !participant.connected ? nowMs : participant.connectedSince,
   });
   const seat = seatOf(s, participantId);
-  const seats = seat === null ? s.seats : { ...s.seats, [seat]: { ...s.seats[seat], held: !connected } };
+  const seats = seat === null ? s.seats : { ...s.seats, [seat]: { ...s.seats[seat], held: !connected, ready: connected && s.seats[seat].ready } };
   return { ...s, participants, seats };
 }
 
@@ -194,4 +195,30 @@ export function cometCrewReady(s: SeatsState): boolean {
     if (slot.occupantId === null || slot.held || slot.setup !== 'calibrated') return false;
     return s.participants.get(slot.occupantId)?.connected === true;
   });
+}
+
+export function setReady(s: SeatsState, participantId: string, ready: boolean): SeatResult {
+  const seat = seatOf(s, participantId);
+  if (seat === null) return { ok: false, reason: 'not-seated' };
+  if (ready && (s.seats[seat].setup !== 'calibrated' || !s.participants.get(participantId)?.connected)) return { ok: false, reason: 'not-calibrated' };
+  return { ok: true, state: { ...s, seats: { ...s.seats, [seat]: { ...s.seats[seat], ready } } } };
+}
+export function clearReady(s: SeatsState): SeatsState {
+  const seats = { ...s.seats };
+  for (const seat of SEAT_IDS) seats[seat] = { ...seats[seat], ready: false };
+  return { ...s, seats };
+}
+export interface SeatReadiness { readonly seat: SeatId; readonly occupantId: string | null; readonly connected: boolean; readonly setup: SetupStatus; readonly ready: boolean }
+export function seatReadiness(s: SeatsState): SeatReadiness[] {
+  return SEAT_IDS.map((seat) => { const slot = s.seats[seat]; return { ...slot, seat, connected: slot.occupantId !== null && s.participants.get(slot.occupantId)?.connected === true }; });
+}
+export function startBlocker(seats: readonly SeatReadiness[]): StartBlocker | null {
+  for (const seat of SEAT_IDS) {
+    const slot = seats.find((s) => s.seat === seat);
+    if (!slot || slot.occupantId === null) return { seat, step: 'join' };
+    if (!slot.connected) return { seat, step: 'reconnect' };
+    if (slot.setup !== 'calibrated') return { seat, step: 'calibrate' };
+    if (!slot.ready) return { seat, step: 'ready' };
+  }
+  return null;
 }

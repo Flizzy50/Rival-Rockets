@@ -83,8 +83,8 @@ describe('validateMessage', () => {
     );
   });
 
-  it('rejects M3 match controls as unknown-type (Requirement 17.8)', () => {
-    for (const type of ['ready.set', 'match.start', 'match.rematch', 'match.swap']) {
+  it('rejects M4 controls as unknown-type', () => {
+    for (const type of ['match.rematch', 'match.swap']) {
       expect(reason({ type, requestId: 1 })).toBe('unknown-type');
     }
   });

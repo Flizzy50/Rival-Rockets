@@ -137,3 +137,35 @@ export const DEBUG_RANGES = {
   fullScaleDeg: { min: 10, max: 60, step: 1 },
   shakeThresholdMps2: { min: 5, max: 30, step: 0.5 },
 } as const;
+
+// The single clockwise course (PRD 4); coordinates are world units.
+export const OUTER_WALL = { minX: 24, minY: 24, maxX: 576, maxY: 776, radius: 120 } as const;
+export const INNER_WALL = { minX: 180, minY: 188, maxX: 420, maxY: 612, radius: 80 } as const;
+export const GATE_SEGMENTS = [
+  { a: { x: 300, y: 24 }, b: { x: 300, y: 188 }, forward: { x: 1, y: 0 } },
+  { a: { x: 420, y: 400 }, b: { x: 576, y: 400 }, forward: { x: 0, y: 1 } },
+  { a: { x: 300, y: 612 }, b: { x: 300, y: 776 }, forward: { x: -1, y: 0 } },
+  { a: { x: 24, y: 400 }, b: { x: 180, y: 400 }, forward: { x: 0, y: -1 } },
+] as const;
+export const CHECKPOINT_COUNT = GATE_SEGMENTS.length;
+export const CHECKPOINT_POINTS = 25;
+export const CORE_POINTS = 10;
+export const CORE_SPAWNS = [{ x: 420, y: 106 }, { x: 498, y: 300 }, { x: 300, y: 694 }, { x: 102, y: 500 }] as const;
+export const CORE_DIAMETER = 26;
+export const CORE_PICKUP_RADIUS = 31;
+export const MAX_CARRIED_CORES = 5;
+export const COURSE_CORE_RESPAWN_MS = 8000;
+export const DROPPED_CORE_LIFETIME_MS = 6000;
+export const OWNER_RECLAIM_DELAY_MS = 1000;
+export const WALL_SPEED_MULTIPLIER = 0.6;
+export const WALL_SLOW_MS = 400;
+export const BUMP_DISPLACEMENT = 12;
+export const SHIELD_BUMP_MULTIPLIER = 0.25;
+export const MAX_DROPS_PER_BOOST = 1;
+export const MATCH_DURATION_MS = 90000;
+export const START_COUNTDOWN_MS = 3000;
+// Practice is local and deliberately starts empty (M3 development values).
+export const PRACTICE_RINGS = [{ x: 460, y: 106 }, { x: 498, y: 360 }, { x: 380, y: 694 }] as const;
+export const PRACTICE_RING_RADIUS = 40;
+export const PRACTICE_START_ENERGY = 0;
+export const PRACTICE_CHARGE_GOAL = 2;

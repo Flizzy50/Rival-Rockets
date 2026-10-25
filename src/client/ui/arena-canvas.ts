@@ -1,7 +1,9 @@
-import { PREVIEW_ARENA_HEIGHT, PREVIEW_ARENA_WIDTH, PREVIEW_ROCKET_LENGTH, START_LANES } from '../../shared/config';
+import { CORE_DIAMETER, CORE_SPAWNS, DROPPED_CORE_LIFETIME_MS, INNER_WALL, OUTER_WALL, PRACTICE_RINGS, PRACTICE_RING_RADIUS, PREVIEW_ARENA_HEIGHT, PREVIEW_ARENA_WIDTH, PREVIEW_ROCKET_LENGTH, ROCKET_RADIUS, START_LANES } from '../../shared/config';
+import { GATES } from '../../shared/course';
+import type { MatchSnapshotMessage, TeamId } from '../../shared/protocol';
 import type { Ability } from '../../shared/rules/abilities';
 import type { RocketPose } from '../../shared/rules/physics';
-import { CAMERA_ANCHOR_Y, CANVAS_MAX_DPR, color, MIN_ROCKET_CSS_PX, STAR_COUNT } from '../../shared/tokens';
+import { CAMERA_ANCHOR_Y, CANVAS_MAX_DPR, color, MIN_ROCKET_CSS_PX, STAR_COUNT, MIN_CORE_CSS_PX, YOU_TAG_MS, OWN_HALO_PX, EDGE_MARKER_SIZE_PX, EDGE_MARKER_INSET_PX, FONT_BODY } from '../../shared/tokens';
 import type { PreviewRocket } from '../preview/rocket-preview';
 import {
   arrowheadPoints,
@@ -16,6 +18,7 @@ import {
   trailChevrons,
   type Point,
   type ViewFit,
+  NOVA_BODY_HEIGHT, NOVA_FIN_SPAN, NOVA_FIN_LENGTH, NOVA_DOT_RADIUS, CORE_RING_RATIO, OWN_HALO_RATIO, LABEL_OFFSET_RATIO, GATE_LINE_PX, GATE_DASH_PX, edgeMarkers, type MarkerObject,
 } from './arena-geometry';
 
 // Arena (PRD 7.2, 7.4, 7.6, 7.8, 7.11). Two cameras:
@@ -67,6 +70,8 @@ export interface RocketEffects {
 }
 
 export interface ArenaCanvas {
+  drawMatch(snapshot: MatchSnapshotMessage, poses: Readonly<Record<TeamId, RocketPose>>, ownTeam: TeamId | null): void;
+  drawPractice(pose: RocketPose, ringsDone: number): void;
   // M1 sensor test preview: the rocket alone, as before.
   draw(rocket: PreviewRocket): void;
   // M2: a server pose with its Comet chevron trail and optional ability effect.
@@ -115,6 +120,7 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
   let fixedFit: ViewFit = { scale: 1, offsetX: 0, offsetY: 0 };
   let arenaLayer: HTMLCanvasElement | null = null;
   let sprite: HTMLCanvasElement | null = null;
+  let novaSprite: HTMLCanvasElement | null = null;
   let spriteSize = 0;
   let rocketLengthPx = 0;
   // Where the chase camera looks while nothing is flying: the start lane.
@@ -153,11 +159,15 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
       g.fill();
     }
     g.globalAlpha = 1;
-    if (chasing()) {
-      const line = EDGE_LINE_PX * dpr;
+    const k = scale * dpr;
+    for (const [r, fill] of [[OUTER_WALL, 'bg-track'], [INNER_WALL, 'bg-space']] as const) {
+      g.beginPath();
+      g.roundRect(r.minX * k, r.minY * k, (r.maxX - r.minX) * k, (r.maxY - r.minY) * k, r.radius * k);
+      g.fillStyle = color(fill);
+      g.fill();
       g.strokeStyle = color('line-wall');
-      g.lineWidth = line;
-      g.strokeRect(line / 2, line / 2, arenaW - line, arenaH - line);
+      g.lineWidth = EDGE_LINE_PX * dpr;
+      g.stroke();
     }
     arenaLayer = bg;
   }
@@ -177,6 +187,23 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
     tracePolyline(g, arrowheadPoints(rocketLengthPx), true);
     g.fill();
     sprite = sp;
+    const nova = createLayer(spriteSize, spriteSize);
+    if (nova) {
+      const [ns, ng] = nova;
+      const len = rocketLengthPx, height = len * NOVA_BODY_HEIGHT;
+      ng.translate(spriteSize / 2, spriteSize / 2);
+      ng.fillStyle = color('team-nova');
+      ng.shadowColor = color('team-nova');
+      ng.shadowBlur = glow;
+      ng.beginPath();
+      ng.roundRect(-len / 2, -height / 2, len, height, height / 2);
+      ng.fill();
+      for (const sign of [-1, 1]) {
+        tracePolyline(ng, [{ x: -len / 2, y: 0 }, { x: -len / 2, y: sign * len * NOVA_FIN_SPAN / 2 }, { x: -len / 2 + len * NOVA_FIN_LENGTH, y: sign * height / 2 }], true);
+        ng.fill();
+      }
+      novaSprite = ns;
+    }
   }
 
   function resize(): void {
@@ -203,15 +230,16 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
   // Context is translated to the rocket center and rotated to its heading.
   // boostAlpha scales only the boost additions (extra chevrons, speed lines),
   // so the base trail stays steady: it is team identity, not an effect.
-  function drawTrail(g: CanvasRenderingContext2D, boostAlpha: number): void {
+  function drawTrail(g: CanvasRenderingContext2D, boostAlpha: number, team: TeamId = 'comet'): void {
     const boosted = boostAlpha > 0;
-    g.strokeStyle = color('team-comet');
+    g.strokeStyle = color(team === 'comet' ? 'team-comet' : 'team-nova');
+    g.fillStyle = g.strokeStyle;
     g.lineWidth = TRAIL_LINE_PX * dpr;
     g.lineJoin = 'miter';
     trailChevrons(rocketLengthPx, boosted).forEach((chevron, i) => {
       g.globalAlpha = chevron.alpha * (i < TRAIL_CHEVRON_COUNT ? 1 : boostAlpha);
-      tracePolyline(g, chevronPoints(chevron), false);
-      g.stroke();
+      if (team === 'comet') { tracePolyline(g, chevronPoints(chevron), false); g.stroke(); }
+      else { g.beginPath(); g.arc(chevron.tipX, 0, rocketLengthPx * NOVA_DOT_RADIUS, 0, Math.PI * 2); g.fill(); }
     });
     if (boosted) {
       g.globalAlpha = SPEED_LINE_ALPHA * boostAlpha;
@@ -260,6 +288,11 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
     if (Number.isFinite(y)) focusY = y;
     const fit = currentFit();
     drawArena(fit);
+    drawRocket({ x, y, heading }, fit, withTrail, effects, 'comet');
+  }
+
+  function drawRocket(pose: RocketPose, fit: ViewFit, withTrail: boolean, effects: RocketEffects | undefined, team: TeamId): void {
+    if (!context || !sprite) return;
     const left = fit.offsetX * dpr;
     const top = fit.offsetY * dpr;
     const k = fit.scale * dpr;
@@ -269,18 +302,80 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
     context.beginPath();
     context.rect(left, top, PREVIEW_ARENA_WIDTH * k, PREVIEW_ARENA_HEIGHT * k);
     context.clip();
-    context.translate(left + x * k, top + y * k);
-    context.rotate(heading);
+    context.translate(left + pose.x * k, top + pose.y * k);
+    context.rotate(pose.heading);
 
     const active = effects?.active ?? null;
     const alpha = active ? effectAlpha(effects?.effectRemainingMs, reducedMotion?.matches ?? false) : 0;
-    if (withTrail) drawTrail(context, active === 'boost' ? alpha : 0);
-    context.drawImage(sprite, -spriteSize / 2, -spriteSize / 2);
+    if (withTrail) drawTrail(context, active === 'boost' ? alpha : 0, team);
+    context.drawImage(team === 'nova' && novaSprite ? novaSprite : sprite, -spriteSize / 2, -spriteSize / 2);
     if (active === 'shield' && alpha > 0) drawShield(context, alpha);
     context.restore();
   }
 
   return {
+    drawMatch(snapshot, poses, ownTeam) {
+      if (!context) return;
+      const g = context;
+      focusY = poses[ownTeam ?? 'comet'].y;
+      const fit = currentFit(), k = fit.scale * dpr;
+      const x = (v: number) => (fit.offsetX + v * fit.scale) * dpr;
+      const y = (v: number) => (fit.offsetY + v * fit.scale) * dpr;
+      drawArena(fit);
+      g.save();
+      g.beginPath(); g.rect(x(0), y(0), PREVIEW_ARENA_WIDTH * k, PREVIEW_ARENA_HEIGHT * k); g.clip();
+      g.lineWidth = GATE_LINE_PX * dpr;
+      g.font = `${EDGE_MARKER_SIZE_PX * dpr}px ${FONT_BODY}`;
+      const markers: MarkerObject[] = [];
+      GATES.forEach((gate, index) => {
+        const teams = (['comet', 'nova'] as const).filter((t) => (ownTeam === null || ownTeam === t) && snapshot.crews[t].nextGate === index);
+        g.strokeStyle = color(teams.length ? 'gate-next' : 'gate-idle');
+        g.setLineDash(teams.length ? [] : [GATE_DASH_PX * dpr]);
+        g.beginPath(); g.moveTo(x(gate.a.x), y(gate.a.y)); g.lineTo(x(gate.b.x), y(gate.b.y)); g.stroke();
+        g.setLineDash([]);
+        g.fillStyle = color('text-primary');
+        if (teams.length) g.fillText(teams.map((t) => t === 'comet' ? '▲' : '●').join(' '), x((gate.a.x + gate.b.x) / 2), y((gate.a.y + gate.b.y) / 2));
+        if (ownTeam && teams.length) markers.push({ kind: 'gate', x: (gate.a.x + gate.b.x) / 2, minY: Math.min(gate.a.y, gate.b.y), maxY: Math.max(gate.a.y, gate.b.y) });
+      });
+      function core(cx: number, cy: number, life?: number, owner?: TeamId): void {
+        const diameter = Math.max(CORE_DIAMETER * fit.scale, MIN_CORE_CSS_PX) * dpr;
+        g.fillStyle = color('core'); g.strokeStyle = color('core');
+        g.beginPath(); g.arc(x(cx), y(cy), diameter / 2, 0, Math.PI * 2); g.fill();
+        if (life !== undefined) { g.beginPath(); g.arc(x(cx), y(cy), diameter * CORE_RING_RATIO, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * life / DROPPED_CORE_LIFETIME_MS); g.stroke(); }
+        if (owner) { g.fillStyle = color('text-primary'); g.fillText(owner === 'comet' ? '▲' : '●', x(cx), y(cy) - diameter); }
+        markers.push({ kind: 'core', x: cx, minY: cy - CORE_DIAMETER / 2, maxY: cy + CORE_DIAMETER / 2 });
+      }
+      snapshot.courseCores.forEach((c, i) => { const p = CORE_SPAWNS[i]; if (c.available && p) core(p.x, p.y); });
+      for (const c of snapshot.droppedCores) core(c.x, c.y, c.lifeRemainingMs, c.lockRemainingMs > 0 ? c.owner : undefined);
+      g.restore();
+      for (const team of ['comet', 'nova'] as const) {
+        const pose = poses[team];
+        drawRocket(pose, fit, true, snapshot.crews[team], team);
+        if (team === ownTeam) {
+          g.strokeStyle = color('text-primary'); g.fillStyle = color('text-primary'); g.lineWidth = OWN_HALO_PX * dpr;
+          g.beginPath(); g.arc(x(pose.x), y(pose.y), rocketLengthPx * OWN_HALO_RATIO, 0, Math.PI * 2); g.stroke();
+          if (snapshot.matchMs < YOU_TAG_MS) g.fillText('YOU', x(pose.x), y(pose.y) - rocketLengthPx * LABEL_OFFSET_RATIO);
+        } else if (ownTeam) markers.push({ kind: 'opponent', x: pose.x, minY: pose.y - ROCKET_RADIUS, maxY: pose.y + ROCKET_RADIUS });
+      }
+      if (chasing() && ownTeam) for (const marker of edgeMarkers(fit, boxW, boxH, markers)) {
+        g.font = `${EDGE_MARKER_SIZE_PX * dpr}px ${FONT_BODY}`;
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillStyle = color(marker.kind === 'core' ? 'core' : marker.kind === 'gate' ? 'gate-next' : ownTeam === 'comet' ? 'team-nova' : 'team-comet');
+        const label = marker.kind === 'core' ? '○' : marker.kind === 'gate' ? '━' : ownTeam === 'comet' ? '●' : '▲';
+        g.fillText(label, marker.x * dpr, (marker.edge === 'top' ? EDGE_MARKER_INSET_PX : boxH - EDGE_MARKER_INSET_PX) * dpr);
+      }
+      g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+    },
+    drawPractice(pose, ringsDone) {
+      render(pose.x, pose.y, pose.heading, true);
+      if (!context) return;
+      const fit = currentFit();
+      PRACTICE_RINGS.forEach((ring, i) => {
+        context.strokeStyle = color(i === ringsDone ? 'gate-next' : 'gate-idle');
+        context.lineWidth = GATE_LINE_PX * dpr;
+        context.beginPath(); context.arc((ring.x * fit.scale + fit.offsetX) * dpr, (ring.y * fit.scale + fit.offsetY) * dpr, PRACTICE_RING_RADIUS * fit.scale * dpr, 0, Math.PI * 2); context.stroke();
+      });
+    },
     draw(rocket) {
       render(rocket.x, rocket.y, rocket.headingRad, false);
     },

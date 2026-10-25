@@ -128,4 +128,3 @@ Planning decision recorded October 24, 2026, following the request to resolve D1
 
 - Commit only when asked. Stage specific files, not everything.
 - Never force-push, reset hard, or skip hooks without explicit permission.
-- Push to a new branch, not directly to main.

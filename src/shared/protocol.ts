@@ -8,14 +8,17 @@ import type { Ability } from './rules/abilities.js';
 // requests, and room/seat actions. No raw sensor data, positions, energy, or
 // scores ever travel from a phone (PRD 8, Requirement 8.7).
 //
-// ready.set, match.start, match.rematch, and match.swap are deliberately absent
-// so the validator rejects them as unknown-type until M3 adds them.
+// Rematch and role swaps remain M4; unknown messages are rejected.
 
 export type { Ability };
 
 export type TeamId = 'comet' | 'nova';
 export type Role = 'pilot' | 'engineer';
 export type SeatId = `${TeamId}-${Role}`;
+export type RoomPhase = 'lobby' | 'countdown' | 'running' | 'results';
+export type ReturnReason = 'countdown-cancelled' | 'abandoned';
+export type StartStep = 'join' | 'reconnect' | 'calibrate' | 'ready';
+export interface StartBlocker { readonly seat: SeatId; readonly step: StartStep }
 
 // Fixed seat order for lobby columns and public room state.
 export const SEAT_IDS = [
@@ -61,6 +64,11 @@ export const REJECT_REASONS = [
   'stale-match',
   'stale-sequence',
   'no-control-test',
+  'wrong-phase',
+  'not-host',
+  'start-blocked',
+  'not-calibrated',
+  'not-running',
   // Ability rules.
   'full',
   'cooldown',
@@ -97,6 +105,8 @@ export type ClientMessage =
       readonly token: string;
     }
   | { readonly type: 'setup.update'; readonly requestId: number; readonly status: ReportedSetupStatus }
+  | { readonly type: 'ready.set'; readonly requestId: number; readonly ready: boolean }
+  | { readonly type: 'match.start'; readonly requestId: number }
   | { readonly type: 'input.steer'; readonly matchId: number; readonly seq: number; readonly steering: number }
   | { readonly type: 'input.charge'; readonly matchId: number; readonly seq: number }
   // Select carries the ability; activate never does, because the server
@@ -133,6 +143,7 @@ export interface PublicParticipant {
 }
 
 export interface PublicSeat {
+  readonly ready: boolean;
   readonly seat: SeatId;
   readonly occupantId: string | null;
   readonly setup: SetupStatus;
@@ -179,6 +190,9 @@ export interface RequestAccepted {
 }
 
 export interface RoomStateMessage {
+  readonly phase: RoomPhase;
+  readonly result: PublicMatchResult | null;
+  readonly returnReason: ReturnReason | null;
   readonly type: 'room.state';
   readonly code: string;
   // Null while no seated play participant can take the host role (Requirement 4.9).
@@ -193,7 +207,7 @@ export interface RoomStateMessage {
 
 // Control test snapshot. No score, timer, checkpoint, core, or result fields:
 // those arrive with the M3 match (Requirement 17.4).
-export interface MatchStateMessage {
+export interface ControlTestStateMessage {
   readonly type: 'match.state';
   readonly matchId: number;
   readonly mode: 'control-test';
@@ -204,6 +218,21 @@ export interface MatchStateMessage {
   readonly steering: number;
   readonly crew: PublicCrewState;
 }
+
+export interface PublicScoreBreakdown { readonly crossings: number; readonly checkpointPoints: number; readonly carried: number; readonly corePoints: number; readonly total: number }
+export interface PublicMatchResult { readonly matchId: number; readonly outcome: 'win' | 'draw'; readonly winner: TeamId | null; readonly teams: Readonly<Record<TeamId, PublicScoreBreakdown>> }
+export interface PublicMatchCrew extends PublicCrewState { readonly crossings: number; readonly nextGate: number; readonly carried: number; readonly score: number }
+export interface PublicDroppedCore { readonly id: number; readonly x: number; readonly y: number; readonly owner: TeamId; readonly lockRemainingMs: number; readonly lifeRemainingMs: number }
+export interface MatchSnapshotMessage {
+  readonly type: 'match.state'; readonly mode: 'match'; readonly matchId: number;
+  readonly phase: 'countdown' | 'running' | 'complete'; readonly tick: number; readonly matchMs: number;
+  readonly remainingMs: number; readonly countdownRemainingMs: number; readonly frozen: boolean;
+  readonly rockets: Readonly<Record<TeamId, PublicPose>>;
+  readonly crews: Readonly<Record<TeamId, PublicMatchCrew>>;
+  readonly courseCores: readonly { readonly available: boolean }[];
+  readonly droppedCores: readonly PublicDroppedCore[];
+}
+export type MatchStateMessage = ControlTestStateMessage | MatchSnapshotMessage;
 
 interface InputAckBase {
   readonly type: 'input.ack';

@@ -58,7 +58,7 @@ export function mountSetupScreen(root: HTMLElement, ctx: AppContext): () => void
     }
     // Requirement 18.5: give up the seat and watch.
     room.request({ type: 'room.watch' }).then(
-      () => ctx.go('room-watch'),
+      (reply) => { if (reply.type !== 'request.rejected') ctx.go('room-watch'); else ctx.leaveRoom(); },
       () => ctx.go('lobby'),
     );
   }
@@ -230,8 +230,17 @@ export function mountSetupScreen(root: HTMLElement, ctx: AppContext): () => void
     setText(calibrationStatus, COPY.neutralSet);
     ctx.announce('polite', COPY.neutralSet);
     // Leaves the filled ring and "Neutral set" visible for one event burst.
-    report('calibrated');
-    navTimer = setTimeout(() => ctx.go(room ? 'control' : role), EVENT_BURST_MAX_MS);
+    const proceed = () => {
+      if (disposed) return;
+      navTimer = setTimeout(() => ctx.go(room ? room.roomState?.phase === 'lobby' ? 'practice' : room.roomState?.phase === 'results' ? 'results' : 'match' : role), EVENT_BURST_MAX_MS);
+    };
+    if (room) {
+      room.request({ type: 'setup.update', status: 'calibrated' }).then((reply) => {
+        if (disposed) return;
+        if (reply.type === 'request.rejected') { calibrated = false; setText(calibrationStatus, 'Check motion and set neutral before Ready.'); }
+        else proceed();
+      }).catch(() => { if (!disposed) { calibrated = false; setText(calibrationStatus, 'Reconnecting… Try again.'); } });
+    } else proceed();
   }
 
   const removeListener = ctx.addSensorListener({
@@ -283,6 +292,7 @@ export function mountSetupScreen(root: HTMLElement, ctx: AppContext): () => void
   }
 
   if (recalibrating) {
+    report('readings');
     releaseWakeLock = holdWakeLock();
     setPhase('calibrate');
   } else {

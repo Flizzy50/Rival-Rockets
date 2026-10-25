@@ -1,12 +1,13 @@
 import {
-  ARENA_HEIGHT,
-  ARENA_WIDTH,
   BASE_SPEED,
   BOOST_SPEED_MULTIPLIER,
   MAX_TURN_DEG_PER_SEC,
-  ROCKET_RADIUS,
+  WALL_SPEED_MULTIPLIER,
+  WALL_SLOW_MS,
   START_LANES,
 } from '../config.js';
+import { containPose } from '../course.js';
+import type { TeamId } from '../protocol.js';
 
 // Server-authoritative rocket movement (PRD 4). Pure: no clock, random, or
 // DOM access, so the server step and tests share one implementation.
@@ -22,15 +23,8 @@ const TWO_PI = 2 * Math.PI;
 const MAX_TURN_RAD_PER_SEC = (MAX_TURN_DEG_PER_SEC * Math.PI) / 180;
 const MS_PER_SEC = 1000;
 
-// M2 boundary (design M2-4): the arena inset by the collision radius so the
-// whole rocket stays visible. M3 replaces this with the course walls.
-const MIN_X = ROCKET_RADIUS;
-const MAX_X = ARENA_WIDTH - ROCKET_RADIUS;
-const MIN_Y = ROCKET_RADIUS;
-const MAX_Y = ARENA_HEIGHT - ROCKET_RADIUS;
-
-export function createStartPose(): RocketPose {
-  const lane = START_LANES.comet;
+export function createStartPose(team: TeamId = 'comet'): RocketPose {
+  const lane = START_LANES[team];
   return { x: lane.x, y: lane.y, heading: normalizeHeading(lane.heading) };
 }
 
@@ -53,6 +47,7 @@ export function stepRocket(
   steering: number,
   boosted: boolean,
   dtMs: number,
+  wallSlowed = false,
 ): RocketPose {
   const steer = Number.isFinite(steering) ? clamp(steering, -1, 1) : 0;
   const dtS = Number.isFinite(dtMs) && dtMs > 0 ? dtMs / MS_PER_SEC : 0;
@@ -61,14 +56,22 @@ export function stepRocket(
   const turn = normalizeHeading(steer * MAX_TURN_RAD_PER_SEC * dtS);
   const heading = normalizeHeading(normalizeHeading(pose.heading) + turn);
 
-  const speed = boosted ? BASE_SPEED * BOOST_SPEED_MULTIPLIER : BASE_SPEED;
+  const speed = forwardSpeed(boosted, wallSlowed);
   const distance = speed * dtS;
 
-  // Per-axis clamp lets the rocket slide along an edge instead of sticking;
-  // the pilot can always turn away.
   return {
-    x: clamp(pose.x + Math.cos(heading) * distance, MIN_X, MAX_X),
-    y: clamp(pose.y + Math.sin(heading) * distance, MIN_Y, MAX_Y),
+    x: pose.x + Math.cos(heading) * distance,
+    y: pose.y + Math.sin(heading) * distance,
     heading,
   };
+}
+
+export interface RocketState { readonly pose: RocketPose; readonly steering: number; readonly wallSlowUntilMs: number | null }
+export function forwardSpeed(boosted: boolean, wallSlowed: boolean): number {
+  return BASE_SPEED * (wallSlowed ? WALL_SPEED_MULTIPLIER : boosted ? BOOST_SPEED_MULTIPLIER : 1);
+}
+export function moveRocket(rocket: RocketState, boosted: boolean, nowMs: number, dtMs: number, fallback: RocketPose): RocketState {
+  const moved = stepRocket(rocket.pose, rocket.steering, boosted, dtMs, rocket.wallSlowUntilMs !== null && nowMs < rocket.wallSlowUntilMs);
+  const contained = containPose(moved, fallback);
+  return { ...rocket, pose: contained.pose, wallSlowUntilMs: contained.contact ? nowMs + WALL_SLOW_MS : rocket.wallSlowUntilMs };
 }

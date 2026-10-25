@@ -5,9 +5,12 @@ Browser party game for four phones. The product spec is [rival-rockets-prd.md](r
 Current build:
 
 - **Milestone 1 sensor test** (Home > Sensor test): motion permission, calibration, pilot tilt, and engineer shake on one phone.
-- **Milestone 2 shared control**: rooms with a six-character code, share link, and QR; four fixed seats; and a development-only *control test* in which the Comet Pilot and Comet Engineer fly one server-owned rocket from two phones. There is no score, timer, or match yet (Milestone 3).
+- **Milestone 2 shared control**: rooms with a six-character code, share link, and QR; four fixed seats; and a development-only *control test* in which the Comet Pilot and Comet Engineer fly one server-owned rocket from two phones.
+- **Milestone 3 game loop**: a full four-player match. Each player sets up motion, practices their role (local only, nothing is sent), and taps Ready. The host starts a 3-2-1-GO countdown, then both crews race for 90 seconds on the one course: ordered gates, cores, Boost and Shield, boosted rams. Every phone shows the same results. The Watch view shows the whole course.
 
-The control test starts by itself once both Comet seats are connected and calibrated, and only when the server's control-test flag is on (`--dev`, or `RR_CONTROL_TEST=1`). Nova seats can be claimed but only watch.
+M3 limits until Milestone 4: a disconnect freezes the match and it resumes as soon as everyone is back (no resume countdown); a lost seat or a disconnect during the countdown returns everyone to the lobby with no result; Results offer only Leave room (no Rematch or Swap roles yet).
+
+The control test still exists for two-phone tuning. It runs only in the lobby, only when the server's control-test flag is on (`--dev`, or `RR_CONTROL_TEST=1`), and starts once both Comet seats are connected and calibrated. Comet players open it from the lobby. It has no score, timer, or result, and starting a match ends it.
 
 ## Requirements
 
@@ -45,6 +48,8 @@ Phone browsers only expose motion sensors on secure (HTTPS) pages, so the dev se
    - Android Chrome: Advanced > Proceed.
 5. If the page does not load, allow Node.js through Windows Defender Firewall on private networks.
 
+For a match: create a room on one phone, join from three more by QR or code, and claim all four seats. Each player finishes motion setup and practice, then taps Ready. The host taps Start. A fifth device can join with Just watch.
+
 For the control test: create a room on phone A, join from phone B by QR or code, claim Comet Pilot and Comet Engineer, and finish motion setup on both.
 
 ## Production check
@@ -61,7 +66,7 @@ Open `http://localhost:3000`. `http://localhost:3000/healthz` returns `ok`. Outs
 1. Push the repo to GitHub.
 2. In the Render Dashboard choose New > Blueprint and pick the repo.
 3. Apply `render.yaml` and wait for the `/healthz` health check to pass.
-4. Open the `onrender.com` HTTPS URL on both phones.
+4. Open the `onrender.com` HTTPS URL on the phones.
 
 **Enabling the control test on the deployed site** (manual): in the Render dashboard, add the environment variable `RR_CONTROL_TEST=1` and redeploy. While it is on, anyone with the URL can fly the one Comet rocket (no score, no match). Remove it after the device test.
 

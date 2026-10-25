@@ -8,7 +8,7 @@ import {
 } from '../src/shared/config.js';
 import type { ClientMessage, GameplayInput, RejectReason, SeatId, ServerMessage } from '../src/shared/protocol.js';
 import type { QueuedInput } from '../src/shared/rules/control-test.js';
-import { seatOf } from '../src/shared/rules/seats.js';
+import { seatOf, seatReadiness, startBlocker } from '../src/shared/rules/seats.js';
 import { IP_RATE_WINDOW_MS, RATE_WINDOW_MS } from './config.js';
 import { rejectedAck, toRoomState } from './public-view.js';
 import { EMPTY_LIMITER, tryHit, type WindowLimiter } from './rate-limit.js';
@@ -89,7 +89,7 @@ function roomChanged(deps: DispatchDeps, code: string): Outbound[] {
   if (!room) return [];
   deps.simulation.sync(code, room.seats);
   const active = deps.simulation.current(code);
-  return [{ kind: 'room', code, message: toRoomState(room, deps.controlTestEnabled, active?.matchId ?? null) }];
+  return [{ kind: 'room', code, message: toRoomState(room, deps.controlTestEnabled, active?.matchId ?? null, deps.simulation.roomStatus(code)) }];
 }
 
 function toQueued(message: GameplayInput): QueuedInput {
@@ -113,19 +113,22 @@ function handleInput(deps: DispatchDeps, conn: Connection, message: GameplayInpu
 
   // Authority comes only from the seat bound to this connection (Requirement 10.1).
   const seat = seatOf(room.seats, conn.participantId);
-  if (seat !== INPUT_SEAT[message.type]) return refuse('not-authorized');
+  const active = deps.simulation.current(code);
+  const role = message.type === 'input.steer' ? 'pilot' : 'engineer';
+  if (seat === null || (active?.mode === 'match' ? !seat.endsWith(role) : seat !== INPUT_SEAT[message.type])) return refuse('not-authorized');
 
   if (message.type !== 'input.charge') {
     const limit = message.type === 'input.steer' ? SERVER_STEERING_PER_SEC : ABILITY_REQUESTS_PER_SEC;
     if (!hitMap(deps.seatLimiters, `${code}/${seat}`, nowMs, limit, RATE_WINDOW_MS).allowed) return refuse('rate-limited');
   }
 
-  const active = deps.simulation.current(code);
   if (!active) return refuse('no-control-test');
+  if (active.mode === 'match' && !active.accepting) return refuse('not-running');
   if (message.matchId !== active.matchId) return refuse('stale-match');
   if (message.seq <= conn.lastSeq) return refuse('stale-sequence');
 
-  const refused = deps.simulation.enqueue(code, conn.id, toQueued(message));
+  const input = toQueued(message);
+  const refused = deps.simulation.enqueue(code, conn.id, active.mode === 'match' ? { ...input, team: seat.startsWith('comet') ? 'comet' : 'nova' } : input);
   if (refused !== null) return refuse(refused);
   conn.lastSeq = message.seq;
   deps.rooms.touch(code);
@@ -206,14 +209,33 @@ function handle(deps: DispatchDeps, conn: Connection, message: ClientMessage, no
   }
 }
 
-type InRoomRequest = Extract<ClientMessage, { type: 'room.leave' | 'room.watch' | 'seat.claim' | 'seat.release' | 'setup.update' }>;
+type InRoomRequest = Extract<ClientMessage, { type: 'room.leave' | 'room.watch' | 'seat.claim' | 'seat.release' | 'setup.update' | 'ready.set' | 'match.start' }>;
 
 function handleRoomRequest(deps: DispatchDeps, conn: Connection, message: InRoomRequest): Outbound[] {
   const code = conn.code ?? '';
   const pid = conn.participantId ?? '';
   const accepted = (): Outbound[] => [send(conn, { type: 'request.accepted', requestId: message.requestId }), ...roomChanged(deps, code)];
+  const phase = deps.simulation.roomStatus(code).phase;
+  const frozen = deps.simulation.current(code)?.frozen === true;
+  if ((message.type === 'seat.claim' || message.type === 'ready.set') && phase !== 'lobby') return reject(conn, message.requestId, 'wrong-phase');
+  if (message.type === 'setup.update' && phase !== 'lobby' && !(phase === 'running' && frozen)) return reject(conn, message.requestId, 'wrong-phase');
+  if ((message.type === 'seat.release' || message.type === 'room.watch') && (phase === 'countdown' || phase === 'running')) return reject(conn, message.requestId, 'wrong-phase');
 
   switch (message.type) {
+    case 'ready.set': {
+      const out = deps.rooms.setReady(code, pid, message.ready);
+      return out.ok ? accepted() : reject(conn, message.requestId, out.reason);
+    }
+    case 'match.start': {
+      const room = deps.rooms.get(code);
+      if (!room || room.seats.hostId !== pid) return reject(conn, message.requestId, 'not-host');
+      if (phase !== 'lobby') return reject(conn, message.requestId, 'wrong-phase');
+      if (startBlocker(seatReadiness(room.seats))) return reject(conn, message.requestId, 'start-blocked');
+      deps.simulation.startMatch(code, room.seats);
+      deps.rooms.clearReady(code);
+      deps.rooms.touch(code);
+      return accepted();
+    }
     case 'seat.claim': {
       const out = deps.rooms.claim(code, pid, message.seat);
       if (!out.ok) return reject(conn, message.requestId, out.reason);

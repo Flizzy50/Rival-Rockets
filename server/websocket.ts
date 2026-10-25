@@ -19,6 +19,7 @@ import {
 import { isOriginAllowed } from './origin.js';
 import { createRoomStore } from './rooms.js';
 import { createSimulation } from './simulation.js';
+import { toRoomState } from './public-view.js';
 
 // Gateway (Requirements 5, 7, 11): upgrade checks, socket bookkeeping, and the
 // two loops. All decisions live in dispatch.ts; this file moves frames.
@@ -105,7 +106,12 @@ export function attachGateway(server: Server, options: GatewayOptions): Gateway 
     randomInt: (max) => randomInt(max),
     randomToken: () => randomBytes(RECONNECT_TOKEN_BYTES).toString('base64url'),
   });
-  const simulation = createSimulation({ nowMs, sendTo, broadcast, controlTestEnabled: options.controlTestEnabled });
+  const simulation = createSimulation({ nowMs, sendTo, broadcast, controlTestEnabled: options.controlTestEnabled,
+    roomChanged(code) {
+      const room = rooms.get(code);
+      if (room) broadcast(code, toRoomState(room, options.controlTestEnabled, simulation.current(code)?.matchId ?? null, simulation.roomStatus(code)));
+    },
+  });
   const deps: DispatchDeps = {
     rooms,
     simulation,
@@ -150,7 +156,13 @@ export function attachGateway(server: Server, options: GatewayOptions): Gateway 
     });
   });
 
-  const simTimer = setInterval(() => simulation.tick(), SIMULATION_LOOP_INTERVAL_MS);
+  const simTimer = setInterval(() => {
+    // A timeout wins a tie with countdown or match completion (PRD 8).
+    for (const { socket, conn } of live.values()) {
+      if (isHeartbeatExpired(conn, nowMs())) { deliver(handleClose(deps, conn)); socket.terminate(); }
+    }
+    simulation.tick();
+  }, SIMULATION_LOOP_INTERVAL_MS);
   const houseTimer = setInterval(() => {
     const now = nowMs();
     // Silent phones are treated as gone (Requirement 11.3).

@@ -55,6 +55,13 @@ export const MIN_TOUCH_PX = 48;
 export const TOUCH_GAP_PX = 8;
 export const ACTIVATE_MIN_HEIGHT_PX = 96;
 export const MIN_ROCKET_CSS_PX = 28;
+export const MIN_CORE_CSS_PX = 14;
+export const FINAL_WARNING_MS = 10000;
+export const YOU_TAG_MS = 5000;
+export const COUNTDOWN_NUMERAL_MS = 1000;
+export const EDGE_MARKER_SIZE_PX = 16;
+export const EDGE_MARKER_INSET_PX = 14;
+export const OWN_HALO_PX = 1.5;
 export const CANVAS_MAX_DPR = 2;
 // Chase camera (PRD 7.6): fraction of the arena box height where the player's
 // own rocket stays on screen. Centered, because the ring course is flown up,

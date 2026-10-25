@@ -42,6 +42,7 @@ function harness(enabled = true): Harness {
   const broadcasts: ServerMessage[] = [];
   const direct: Array<{ to: string; message: ServerMessage }> = [];
   const sim = createSimulation({
+    roomChanged: () => undefined,
     nowMs: () => now.ms,
     sendTo: (to, message) => direct.push({ to, message }),
     broadcast: (_code, message) => broadcasts.push(message),
@@ -59,7 +60,7 @@ function run(h: Harness, ms: number): void {
 }
 
 function matchStates(h: Harness) {
-  return h.broadcasts.flatMap((m) => (m.type === 'match.state' ? [m] : []));
+  return h.broadcasts.flatMap((m) => (m.type === 'match.state' && m.mode === 'control-test' ? [m] : []));
 }
 
 describe('simulation', () => {
@@ -124,7 +125,7 @@ describe('simulation', () => {
     expect(h.sim.enqueue('ROOM', 'c2', { kind: 'charge', seq: 1 })).toBe('no-control-test');
 
     expect(h.sim.sync('ROOM', setConnected(away, 'p', true, h.now.ms))).toBe('resumed');
-    expect(h.sim.current('ROOM')).toEqual({ matchId, frozen: false });
+    expect(h.sim.current('ROOM')).toEqual({ matchId, frozen: false, mode: 'control-test', accepting: true });
     run(h, 100);
     expect(matchStates(h).at(-1)?.tick).toBeGreaterThan(frozenState?.tick ?? 0);
   });

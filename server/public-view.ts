@@ -1,7 +1,12 @@
 import {
   SEAT_IDS,
   type InputAck,
-  type MatchStateMessage,
+  type ControlTestStateMessage,
+  type MatchSnapshotMessage,
+  type PublicMatchResult,
+  type ReturnReason,
+  type RoomPhase,
+  type TeamId,
   type PublicCrewState,
   type PublicPose,
   type RejectReason,
@@ -10,6 +15,9 @@ import {
 import { getAbilityStatus, type CrewAbilityState } from '../src/shared/rules/abilities.js';
 import type { ControlTestState, InputResult } from '../src/shared/rules/control-test.js';
 import type { Room } from './rooms.js';
+import { MATCH_DURATION_MS } from '../src/shared/config.js';
+import type { MatchState } from '../src/shared/rules/match.js';
+import { nextGateIndex, teamScore, type MatchResult, type ScoreBreakdown } from '../src/shared/rules/scoring.js';
 
 // Public_View (Requirements 5.3, 5.4): every outgoing state object is built
 // field by field from an allowlist. Server records are never spread, so
@@ -31,7 +39,7 @@ export function toCrew(crew: CrewAbilityState, sessionMs: number): PublicCrewSta
   };
 }
 
-export function toRoomState(room: Room, controlTestEnabled: boolean, activeMatchId: number | null): RoomStateMessage {
+export function toRoomState(room: Room, controlTestEnabled: boolean, activeMatchId: number | null, status: { phase: RoomPhase; result: PublicMatchResult | null; returnReason: ReturnReason | null } = { phase: 'lobby', result: null, returnReason: null }): RoomStateMessage {
   const participants = [...room.seats.participants.values()]
     .sort((a, b) => a.joinOrder - b.joinOrder)
     .map((p) => ({
@@ -49,6 +57,7 @@ export function toRoomState(room: Room, controlTestEnabled: boolean, activeMatch
       setup: slot.setup,
       connected: occupant?.connected ?? false,
       held: slot.held,
+      ready: slot.ready,
     };
   });
   return {
@@ -57,12 +66,15 @@ export function toRoomState(room: Room, controlTestEnabled: boolean, activeMatch
     hostId: room.seats.hostId,
     controlTestEnabled,
     activeMatchId,
+    phase: status.phase,
+    result: status.result,
+    returnReason: status.returnReason,
     participants,
     seats,
   };
 }
 
-export function toMatchState(test: ControlTestState, frozen: boolean): MatchStateMessage {
+export function toMatchState(test: ControlTestState, frozen: boolean): ControlTestStateMessage {
   return {
     type: 'match.state',
     matchId: test.matchId,
@@ -92,4 +104,30 @@ export function toAck(test: ControlTestState, result: InputResult): InputAck {
 // Gateway refusals happen before any step, so they carry no state.
 export function rejectedAck(matchId: number, seq: number, reason: RejectReason): InputAck {
   return { type: 'input.ack', matchId, seq, status: 'rejected', reason };
+}
+
+export function toPublicResult(result: MatchResult, matchId: number): PublicMatchResult {
+  const score = (b: ScoreBreakdown) => ({ crossings: b.crossings, checkpointPoints: b.checkpointPoints, carried: b.carried, corePoints: b.corePoints, total: b.total });
+  return { matchId, outcome: result.outcome, winner: result.winner, teams: { comet: score(result.teams.comet), nova: score(result.teams.nova) } };
+}
+export function toMatchSnapshot(state: MatchState, phase: MatchSnapshotMessage['phase'], frozen: boolean, countdownRemainingMs: number): MatchSnapshotMessage {
+  const crew = (team: TeamId) => {
+    const c = state.crews[team];
+    return { ...toCrew(c.abilities, state.matchMs), crossings: c.crossings, nextGate: nextGateIndex(c.crossings), carried: c.carried, score: teamScore(c.crossings, c.carried) };
+  };
+  return {
+    type: 'match.state', mode: 'match', matchId: state.matchId, phase, tick: state.tick, matchMs: state.matchMs,
+    remainingMs: Math.max(0, MATCH_DURATION_MS - state.matchMs), countdownRemainingMs, frozen,
+    rockets: { comet: toPose(state.crews.comet.rocket.pose), nova: toPose(state.crews.nova.rocket.pose) },
+    crews: { comet: crew('comet'), nova: crew('nova') },
+    courseCores: state.course.map((c) => ({ available: c.respawnAtMs === null })),
+    droppedCores: state.dropped.map((c) => ({ id: c.id, x: c.x, y: c.y, owner: c.owner, lockRemainingMs: Math.max(0, c.ownerUnlockAtMs - state.matchMs), lifeRemainingMs: Math.max(0, c.expiresAtMs - state.matchMs) })),
+  };
+}
+export function toMatchAck(state: MatchState, team: TeamId, result: InputResult): InputAck {
+  const c = state.crews[team];
+  const base = { type: 'input.ack', matchId: state.matchId, seq: result.seq, tick: state.tick } as const;
+  if (result.status === 'rejected') return { ...base, status: 'rejected', reason: result.reason, crew: toCrew(c.abilities, state.matchMs) };
+  if (result.kind === 'steer') return { ...base, status: 'applied', steering: c.rocket.steering, pose: toPose(c.rocket.pose) };
+  return { ...base, status: 'applied', crew: toCrew(c.abilities, state.matchMs) };
 }

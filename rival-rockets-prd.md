@@ -84,6 +84,13 @@ No account, email address, app installation, or payment is required.
 - Resolve a contested pickup by the earliest swept contact within the simulation step. If both rockets reach the same core at exactly the same instant, leave it uncollected that step; neither team receives an arbitrary priority. Place a dropped core at the impact point projected onto the playable course so it remains reachable. It becomes collectible on the next simulation step, not during the collision that created it.
 - Evaluate each active boost and shield at collision time. If both unshielded rockets are boosting and collide, each can lose one carried core; a blocked hit does not consume the attacker's one-drop allowance. Check expiration before a pickup at the exact six-second dropped-core deadline, and make a course core available at its exact eight-second respawn deadline.
 
+**Milestone 3 rule clarifications (proposed until approved).** The M3 build implements these readings where this section is silent:
+
+- **Wall slow and Boost:** While a wall slow is active, the rocket moves at 60% of base speed even if Boost is active. The Boost timer keeps running.
+- **Bumps can score a gate:** Gate crossings are tested on the movement segment and again on the bump segment, so a bump that pushes a rocket forward across its next gate counts. A backward push never scores.
+- **Boosted ram:** A ram is the first overlapping step of a new contact while the attacker's Boost is active. Only an actual drop uses the one-drop allowance; a Shield block or a victim with no cores leaves it unused. A new Boost activation resets the allowance.
+- **Pickup sweep:** A pickup tests each rocket's straight path from its start-of-step center to its end-of-step center. Cores resolve in order of earliest contact, updating capacity as they go; an exact tie leaves the core for that step.
+
 ### Tutorial and results explanation
 
 The role tutorial explains the rules before Ready, and the results screen uses the same values. Keep this copy aligned with the shared config whenever a gameplay number changes.
@@ -402,6 +409,32 @@ The voice is short, energetic, and plain: a teammate calling the play, not a man
 | Connection lost | "Connection lost. Create or join a new room." |
 | Room expired | "This room expired. Create or join a new room." |
 | Server restarted | "The game restarted. Create or join a new room." |
+| **Game loop (Milestone 3, proposed until approved)** | |
+| Lobby slot state | "Ready" with the success check |
+| Ready toggle | "Ready" / "✓ Ready" (pressed) |
+| Host start button | "Start" |
+| Start blocked | "Waiting for [Seat] to join" / "… to reconnect" / "… to calibrate" / "… to get ready", e.g. "Waiting for Nova Engineer to calibrate" |
+| Start blocked (no local reason yet) | "All four players need to calibrate and get ready." |
+| Non-host, all ready | "Waiting for the host to start" |
+| Lobby setup button | "Continue setup" / "Practice" |
+| Recalibrate | "Recalibrate" |
+| Not calibrated | "Check motion and set neutral before Ready." |
+| Seat change outside the lobby | "Wait for the lobby to change seats or get ready." |
+| Match in progress (lobby) | "A match is running. Watch it?" |
+| Countdown cancelled (lobby notice) | "Countdown cancelled. Check motion and get ready again." |
+| Match discarded (lobby notice) | "Match interrupted. A player couldn't reconnect." |
+| Practice title | "PRACTICE" |
+| Practice pilot progress | "Rings: [n] / 3" |
+| Practice engineer steps | "Shake to fill two energy segments" → "Tilt right and hold for Shield" → "Tap Activate" → "Ready to fly" |
+| Practice buttons | "Skip" (after the first success) / "Done" |
+| Countdown | "3" / "2" / "1" / "GO", with "Tilt to steer" or "Shake to charge" |
+| Own rocket tag | "YOU" (first 5 seconds) |
+| HUD team labels | "▲ COMET" / "NOVA ●" |
+| HUD core pips (screen reader) | "Comet cores 2 of 5" |
+| Match paused | "Paused · [Seat] reconnecting" with **Recalibrate** |
+| Results headline | "COMET WINS" / "NOVA WINS" / "DRAW" |
+| Results lines | "Gates: [count] × 25 = [points]", "Cores held: [count] × 10 = [points]", "Total: [points]", then the Section 4 explanation |
+| Results action | "Leave room" |
 
 ### 7.10 Accessibility
 
@@ -435,6 +468,13 @@ The voice is short, energetic, and plain: a teammate calling the play, not a man
 - Use a private reconnect token for a claimed seat. A room code alone must not permit taking over another person's role. Keep only one active connection per player seat.
 - If the room creator leaves the lobby, another connected player receives the start/rematch controls.
 - Rooms expire after 30 minutes of inactivity. A server restart may end active rooms in the MVP; affected clients must show a clear message and an option to create or join a new room.
+
+**Milestone 3 interim connection behavior (proposed until approved; M4 replaces it).** Until the M4 Paused, Resuming, and Interrupted screens exist:
+
+- A disconnect or heartbeat timeout during a running match freezes the clock, physics, effects, cooldowns, wall slows, and core timers, and sets the disconnected Pilot's steering to neutral. When all four seats are connected and calibrated again, the match resumes at once, without the three-second resume countdown.
+- A disconnect during the start countdown cancels it and returns everyone to the lobby with no played match.
+- If a seat's 15-second hold expires, or a seat changes occupant, during the countdown or a match, the match is discarded with no result and everyone returns to the lobby with "Match interrupted. A player couldn't reconnect."
+- Results are final in M3: the only action is **Leave room**. Rematch and Swap roles arrive in M4.
 
 ### Room and message limits (MVP starting values)
 

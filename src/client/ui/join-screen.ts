@@ -150,7 +150,8 @@ export function mountJoinScreen(root: HTMLElement, ctx: AppContext): () => void 
       return;
     }
     ctx.prefillCode = null;
-    ctx.go(intent === 'watch' ? 'room-watch' : 'lobby');
+    const phase = ctx.room?.roomState?.phase;
+    ctx.go(phase === 'results' ? 'results' : phase === 'running' || phase === 'countdown' || intent === 'watch' ? 'room-watch' : 'lobby');
   }
 
   return () => {

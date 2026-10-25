@@ -46,3 +46,32 @@ Target for comparison: p95 ≤ 150 ms (PRD 2). It's a target to measure, not a r
 - [ ] Reload one phone within 15 s: the seat is reclaimed from session storage; motion setup runs again.
 - [ ] On the deployed site, copy the debug panel summary after at least 2 minutes of flying: p95 send-to-ack for steer, charge, and ability, and render delay p95, against the 150 ms target.
 - [ ] Per-IP limits on the deployed site behave per device (checks `RR_TRUSTED_PROXY_HOPS`).
+
+# M3 device test log (game loop)
+
+Agents did not run any of these checks; they need four physical phones (at least one iPhone in Safari and one Android phone in Chrome), the deployed site, and an optional fifth device to watch. Do not record names, room codes, tokens, IP addresses, device identifiers, or raw sensor samples. Paste latency numbers from the debug panel's Copy readings.
+
+| Build / revision | Date | Comet Pilot (model, OS, browser) | Comet Engineer | Nova Pilot | Nova Engineer | Watch device (optional) | Network (no identifying data) | Scenario | Observed result | All phones agree on result? | Steer p95 send→ack | Charge p95 send→ack | Ability p95 send→ack | Render delay p95 | Follow-up |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| | | iPhone, iOS, Safari | Android, Chrome | | | | | | | | ms | ms | ms | ms | |
+
+Target for comparison: p95 ≤ 150 ms (PRD 2). It's a target to measure, not a result.
+
+## M3 scenario checklist
+
+- [ ] Four phones join by QR or code and claim four unique seats; a fifth device watches.
+- [ ] Each player completes motion setup and practice (pilot rings; engineer two charges, Shield, Activate). PRACTICE shows, Skip appears after the first success, and practice changes nothing in the lobby or match.
+- [ ] The tutorial text matches PRD Section 4.
+- [ ] With three players, an uncalibrated player, a disconnected player, or a player not Ready, the host's Start is disabled with the specific reason (AC2 foundation).
+- [ ] 3-2-1-GO appears on all four phones with the role reminder.
+- [ ] Both pilots steer with real tilt and both engineers charge with real shakes; each crew controls only its own rocket (AC3).
+- [ ] Gates score only in order and forward; driving backward or circling one gate scores nothing (AC6).
+- [ ] Cores: pickups, five-core cap, respawn, boosted ram drop, Shield block, owner lockout, dropped-core expiry; all phones agree on ownership and score (AC7).
+- [ ] Walls slow the rocket and never trap it; bumps push without taking points.
+- [ ] The chase camera keeps the own rocket at a fixed height; edge markers show the opponent, next gate, and cores off screen and are readable; reduced motion shows the full course.
+- [ ] Grayscale: the two rockets, scores, and ability states stay distinguishable (AC13 foundation).
+- [ ] At 90 s every phone shows the same result and breakdown; a tie shows DRAW (AC8).
+- [ ] Turn off Wi-Fi on one phone for under 15 s: the match freezes with "Paused · [Seat] reconnecting", then resumes. Over 15 s: all phones return to the lobby with "Match interrupted. A player couldn't reconnect." Disconnect during the countdown: everyone returns to the lobby.
+- [ ] Rotate a phone mid-match: the overlay appears, Pilot steering goes neutral, Engineer selection freezes.
+- [ ] During a four-phone match, record p95 send-to-applied-ack and render delay from the debug panel (AC12 foundation).
+- [ ] Playtest note: with identical straight flight from the start lanes, both rockets reach the top core (420, 106) at the same instant, and the PRD tie rule leaves it uncollected. Note whether this feels wrong in play.

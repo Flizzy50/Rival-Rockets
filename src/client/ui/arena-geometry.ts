@@ -1,4 +1,4 @@
-import { EFFECT_FLICKER_MS } from '../../shared/tokens';
+import { EFFECT_FLICKER_MS, EDGE_MARKER_INSET_PX } from '../../shared/tokens';
 
 // Pure drawing geometry for the arena canvas, in rocket-local pixels: the
 // nose points along +x and the rocket center is the origin. Kept apart from
@@ -32,6 +32,15 @@ export interface Box {
 // Comet delta-wing proportions relative to rocket length (PRD 7.4).
 export const WING_SPAN = 0.75;
 export const TAIL_NOTCH = 0.25;
+export const NOVA_BODY_HEIGHT = 0.45;
+export const NOVA_FIN_SPAN = 0.75;
+export const NOVA_FIN_LENGTH = 0.3;
+export const NOVA_DOT_RADIUS = 0.055;
+export const CORE_RING_RATIO = 0.7;
+export const OWN_HALO_RATIO = 0.65;
+export const LABEL_OFFSET_RATIO = 0.9;
+export const GATE_LINE_PX = 3;
+export const GATE_DASH_PX = 7;
 
 // Comet trail: chevron segments (PRD 7.4). Boost doubles its length (PRD 7.8).
 export const TRAIL_LENGTH_RATIO = 1;
@@ -69,6 +78,16 @@ export function arrowheadPoints(lengthPx: number): readonly Point[] {
     { x: -half + lengthPx * TAIL_NOTCH, y: 0 },
     { x: -half, y: wing },
   ];
+}
+
+export interface MarkerObject { readonly kind: 'opponent' | 'gate' | 'core'; readonly x: number; readonly minY: number; readonly maxY: number }
+export interface EdgeMarker { readonly kind: MarkerObject['kind']; readonly edge: 'top' | 'bottom'; readonly x: number }
+export function edgeMarkers(fit: ViewFit, boxW: number, boxH: number, objects: readonly MarkerObject[]): EdgeMarker[] {
+  const minY = -fit.offsetY / fit.scale, maxY = (boxH - fit.offsetY) / fit.scale;
+  return objects.flatMap((o): EdgeMarker[] => {
+    const edge = o.maxY < minY ? 'top' : o.minY > maxY ? 'bottom' : null;
+    return edge ? [{ kind: o.kind, edge, x: Math.max(EDGE_MARKER_INSET_PX, Math.min(boxW - EDGE_MARKER_INSET_PX, o.x * fit.scale + fit.offsetX)) }] : [];
+  });
 }
 
 export function trailLength(lengthPx: number, boosted: boolean): number {

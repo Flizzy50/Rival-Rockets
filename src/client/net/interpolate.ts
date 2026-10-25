@@ -1,5 +1,5 @@
 import { INTERPOLATION_DELAY_MS, SNAPSHOT_BUFFER_SIZE } from '../../shared/config';
-import type { PublicPose } from '../../shared/protocol';
+import type { PublicPose, TeamId } from '../../shared/protocol';
 
 // Interpolator (Requirement 20, PRD 9). Pure: the screen passes the local
 // clock in. Renders slightly in the past so there is usually a snapshot on
@@ -8,7 +8,7 @@ import type { PublicPose } from '../../shared/protocol';
 export interface Snapshot {
   readonly matchId: number;
   readonly sessionMs: number;
-  readonly pose: PublicPose;
+  readonly poses: Readonly<Partial<Record<TeamId, PublicPose>>>;
   readonly receivedAtMs: number;
 }
 
@@ -55,21 +55,22 @@ export function newestSnapshot(buf: SnapshotBuffer): Snapshot | null {
   return buf.snapshots[buf.snapshots.length - 1] ?? null;
 }
 
-export function sampleAt(buf: SnapshotBuffer, renderSessionMs: number): PublicPose | null {
+export function sampleAt(buf: SnapshotBuffer, renderSessionMs: number, team: TeamId = 'comet'): PublicPose | null {
   const list = buf.snapshots;
   const first = list[0];
   const last = list[list.length - 1];
   if (!first || !last) return null;
-  if (renderSessionMs <= first.sessionMs) return first.pose;
+  if (renderSessionMs <= first.sessionMs) return first.poses[team] ?? null;
   // Past the newest data: hold rather than extrapolate (Requirement 20.4).
-  if (renderSessionMs >= last.sessionMs) return last.pose;
+  if (renderSessionMs >= last.sessionMs) return last.poses[team] ?? null;
   for (let i = 1; i < list.length; i += 1) {
     const b = list[i] as Snapshot;
     if (b.sessionMs < renderSessionMs) continue;
     const a = list[i - 1] as Snapshot;
-    return interpolatePose(a.pose, b.pose, (renderSessionMs - a.sessionMs) / (b.sessionMs - a.sessionMs));
+    const from = a.poses[team], to = b.poses[team];
+    return from && to ? interpolatePose(from, to, (renderSessionMs - a.sessionMs) / (b.sessionMs - a.sessionMs)) : to ?? from ?? null;
   }
-  return last.pose;
+  return last.poses[team] ?? null;
 }
 
 // The smallest receipt-minus-session offset tracks the least-delayed snapshot,

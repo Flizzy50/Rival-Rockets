@@ -4,12 +4,14 @@ import { SEAT_IDS, type Intent, type RejectReason, type SeatId, type SetupStatus
 import {
   addParticipant,
   claimSeat,
+  clearReady,
   createSeatsState,
   releaseSeat,
   removeParticipant,
   seatOf,
   setConnected,
   setSeatSetup,
+  setReady,
   switchToWatch,
   type SeatsState,
 } from '../src/shared/rules/seats.js';
@@ -57,6 +59,8 @@ export interface RoomStore {
   watch(code: string, participantId: string): StoreResult;
   leave(code: string, participantId: string): void;
   setSetup(code: string, participantId: string, status: SetupStatus): StoreResult;
+  setReady(code: string, participantId: string, ready: boolean): StoreResult;
+  clearReady(code: string): void;
   disconnect(code: string, participantId: string): void;
   reconnect(
     code: string,
@@ -209,8 +213,23 @@ export function createRoomStore(deps: RoomStoreDeps): RoomStore {
       if (!room) return { ok: false, reason: 'room-not-found' };
       const out = setSeatSetup(room.seats, participantId, status);
       if (!out.ok) return out;
+      const seat = seatOf(room.seats, participantId);
+      update(room, { seats: out.state, lastActivityMs: deps.nowMs(), ...(status === 'calibrated' && seat !== null ? { holdUntilMs: { ...room.holdUntilMs, [seat]: null } } : {}) });
+      return { ok: true };
+    },
+
+    setReady(code, participantId, ready) {
+      const room = rooms.get(code);
+      if (!room) return { ok: false, reason: 'room-not-found' };
+      const out = setReady(room.seats, participantId, ready);
+      if (!out.ok) return out;
       update(room, { seats: out.state, lastActivityMs: deps.nowMs() });
       return { ok: true };
+    },
+
+    clearReady(code) {
+      const room = rooms.get(code);
+      if (room) update(room, { seats: clearReady(room.seats) });
     },
 
     disconnect(code, participantId) {
@@ -239,9 +258,12 @@ export function createRoomStore(deps: RoomStoreDeps): RoomStore {
       // A live seat may also be reclaimed: a reload can arrive before the
       // server notices the old socket is gone (Requirement 5.7).
       if (holdUntil !== null && deps.nowMs() >= holdUntil) return denied;
+      const reset = setSeatSetup(setConnected(room.seats, occupantId, true, deps.nowMs()), occupantId, 'unverified');
+      if (!reset.ok) return denied;
       update(room, {
-        seats: setConnected(room.seats, occupantId, true, deps.nowMs()),
-        holdUntilMs: { ...room.holdUntilMs, [seat]: null },
+        seats: reset.state,
+        // Reconnecting must restore usable controls within the original hold.
+        holdUntilMs: { ...room.holdUntilMs, [seat]: holdUntil ?? deps.nowMs() + SEAT_HOLD_MS },
       });
       return { ok: true, participantId: occupantId };
     },

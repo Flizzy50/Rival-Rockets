@@ -7,6 +7,9 @@ import { ROOM_COPY, seatName } from './copy';
 import { button, el, setText } from './dom';
 import { controlTestStatus } from './lobby-screen';
 import { teamTag } from './top-bar';
+import { createHud } from './hud';
+import { startBlocker } from '../../shared/rules/seats';
+import { startBlockerText } from '../../shared/copy';
 
 // Watch view (Requirement 21): room code, the four seats, and the
 // interpolated arena. It never asks for motion and sends no gameplay input.
@@ -39,6 +42,8 @@ export function mountRoomWatchScreen(root: HTMLElement, ctx: AppContext): () => 
   const arena = el('div', { className: 'arena' });
   const strip = el('p', { className: 'control-strip', text: ROOM_COPY.controlTestLabel });
   const waiting = el('p', { className: 'arena-message', attrs: { 'aria-live': 'polite' } });
+  const hud = createHud(null);
+  hud.element.hidden = true;
 
   root.append(
     el(
@@ -52,6 +57,7 @@ export function mountRoomWatchScreen(root: HTMLElement, ctx: AppContext): () => 
         el('div', { className: 'top-bar-actions' }, button(ROOM_COPY.leave, 'btn btn-small', () => ctx.leaveRoom())),
       ),
       list,
+      hud.element,
       strip,
       el('div', { className: 'middle' }, arena, waiting),
     ),
@@ -80,18 +86,27 @@ export function mountRoomWatchScreen(root: HTMLElement, ctx: AppContext): () => 
     if (!room) return;
     const pose = sampleAt(room.buffer, estimateRenderTime(room.buffer, nowMs));
     const running = room.roomState?.activeMatchId != null && pose !== null;
-    if (running) {
-      const crew = room.matchState?.crew;
+    const snapshot = room.matchState;
+    hud.element.hidden = snapshot?.mode !== 'match';
+    if (snapshot?.mode === 'match') {
+      const time = estimateRenderTime(room.buffer, nowMs);
+      canvas.drawMatch(snapshot, { comet: sampleAt(room.buffer, time, 'comet') ?? snapshot.rockets.comet, nova: sampleAt(room.buffer, time, 'nova') ?? snapshot.rockets.nova }, null);
+      hud.update(snapshot);
+    } else if (running) {
+      const crew = snapshot?.mode === 'control-test' ? snapshot.crew : null;
       canvas.drawPose(pose, { active: crew?.active ?? null, effectRemainingMs: crew?.effectRemainingMs });
     } else {
       canvas.drawEmpty();
     }
     let message = '';
-    if (!running) message = room.roomState ? controlTestStatus(room.roomState) : ROOM_COPY.waitingNoTest;
+    if (!running) {
+      const blocker = room.roomState ? startBlocker(room.roomState.seats) : null;
+      message = blocker ? startBlockerText(blocker) : room.roomState ? controlTestStatus(room.roomState) : ROOM_COPY.waitingNoTest;
+    }
     else if (room.matchState?.frozen) message = ROOM_COPY.frozenNote;
     setText(waiting, message);
     waiting.hidden = message === '';
-    strip.hidden = !running;
+    strip.hidden = !running || snapshot?.mode === 'match';
   }
 
   renderSeats();

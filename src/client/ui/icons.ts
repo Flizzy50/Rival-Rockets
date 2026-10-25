@@ -2,8 +2,24 @@
 // are decorative and always sit next to a text label (PRD 7.4), so they are
 // hidden from assistive technology.
 
+import type { TeamId } from '../../shared/protocol';
+import { arrowheadPoints, NOVA_BODY_HEIGHT, NOVA_FIN_LENGTH, NOVA_FIN_SPAN } from './arena-geometry';
+
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const VIEWBOX = '0 0 24 24';
+const ICON_ROCKET_LENGTH = 20;
+
+export function rocketSilhouette(team: TeamId): SVGSVGElement {
+  const length = ICON_ROCKET_LENGTH;
+  const group = shape('g', { transform: 'translate(12 12)', fill: 'currentColor' });
+  if (team === 'comet') group.append(shape('polygon', { points: arrowheadPoints(length).map((p) => `${p.x},${p.y}`).join(' ') }));
+  else {
+    const height = length * NOVA_BODY_HEIGHT;
+    group.append(shape('rect', { x: String(-length / 2), y: String(-height / 2), width: String(length), height: String(height), rx: String(height / 2) }));
+    for (const sign of [-1, 1]) group.append(shape('polygon', { points: `${-length / 2},0 ${-length / 2},${sign * length * NOVA_FIN_SPAN / 2} ${-length / 2 + length * NOVA_FIN_LENGTH},${sign * height / 2}` }));
+  }
+  return svg('rocket-silhouette', group);
+}
 
 function svg(className: string, ...children: SVGElement[]): SVGSVGElement {
   const root = document.createElementNS(SVG_NS, 'svg');

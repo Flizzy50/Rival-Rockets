@@ -648,6 +648,50 @@ h1:focus {
   -webkit-touch-callout: none;
 }
 
+.match-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--touch-gap);
+  flex: var(--layout-hud) 0 auto;
+  font-family: var(--font-display);
+}
+.hud-team { display: grid; justify-items: center; min-width: 0; padding: 4px 8px; border: 1px solid transparent; border-radius: 8px; }
+.hud-team.own-team { border-color: currentColor; }
+.hud-team.team-comet, .result-card.team-comet, .screen-title.team-comet { color: var(--team-comet); }
+.hud-team.team-nova, .result-card.team-nova, .screen-title.team-nova { color: var(--team-nova); }
+.rocket-silhouette { width: 48px; height: 48px; vertical-align: middle; }
+.hud-label { font-size: var(--size-caption); font-weight: 700; }
+.hud-score { font-size: 36px; line-height: 1; }
+.core-pips { display: flex; gap: 4px; color: var(--core); font-size: var(--size-caption); }
+.match-timer { font-size: 36px; font-weight: 700; }
+.final-warning { color: var(--warning); }
+.timer-pulse { animation: timer-pulse var(--transition) ease-out; }
+@keyframes timer-pulse { from { transform: scale(1.08); } to { transform: scale(1); } }
+.match-screen { position: relative; }
+.match-screen .middle { overflow: hidden; }
+.match-debug { position: absolute; bottom: 0; right: 0; }
+.pause-controls { position: absolute; top: 0; left: 0; }
+.countdown-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-space);
+  color: var(--text-primary);
+}
+.countdown-overlay.is-go { background: transparent; pointer-events: none; }
+.countdown-numeral { font-family: var(--font-display); font-size: clamp(64px, 20vw, 120px); }
+.practice-arena { position: relative; height: 45dvh; min-height: 240px; }
+.practice-screen .role-panel { flex: none; }
+.result-card { background: var(--bg-surface); border: 1px solid currentColor; border-radius: 16px; padding: 16px; }
+.result-card p { color: var(--text-primary); }
+.result-total { font-family: var(--font-display); font-size: 28px; }
+@media (prefers-reduced-motion: reduce) { .timer-pulse { animation: none; } }
+
 .top-bar {
   display: flex;
   flex: var(--layout-hud) 0 0%;

@@ -10,7 +10,7 @@ import {
   type Ability,
   type CrewAbilityState,
 } from './abilities.js';
-import { createStartPose, stepRocket, type RocketPose } from './physics.js';
+import { createStartPose, moveRocket, type RocketPose } from './physics.js';
 
 // M2 control test (design M2-1, M2-5): one Comet rocket flown by one crew.
 // One call is one fixed step. Pure: no clock, random source, or socket, so the
@@ -23,6 +23,7 @@ export interface ControlTestState {
   readonly sessionMs: number;
   readonly pose: RocketPose;
   readonly steering: number;
+  readonly wallSlowUntilMs: number | null;
   // Deadlines are in session ms, so a frozen test also freezes them.
   readonly crew: CrewAbilityState;
 }
@@ -46,6 +47,7 @@ export function createControlTest(matchId: number): ControlTestState {
     sessionMs: 0,
     pose: createStartPose(),
     steering: 0,
+    wallSlowUntilMs: null,
     crew: createCrewAbilityState(),
   };
 }
@@ -104,12 +106,14 @@ export function stepControlTest(
   // An ability activated in this step already boosts this step's movement.
   const boosted = getAbilityStatus(crew, now).activeAbility === 'boost';
   const tick = state.tick + 1;
+  const rocket = moveRocket({ pose: state.pose, steering, wallSlowUntilMs: state.wallSlowUntilMs }, boosted, now, STEP_MS, createStartPose());
   return {
     state: {
       matchId: state.matchId,
       tick,
       sessionMs: tick * STEP_MS,
-      pose: stepRocket(state.pose, steering, boosted, STEP_MS),
+      pose: rocket.pose,
+      wallSlowUntilMs: rocket.wallSlowUntilMs,
       steering,
       crew,
     },

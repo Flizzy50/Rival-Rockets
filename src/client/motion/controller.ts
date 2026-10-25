@@ -6,6 +6,7 @@ import {
   type Ability,
   type AbilityStatus,
   type ActivationResult,
+  type CrewAbilityState,
 } from '../../shared/rules/abilities';
 import { createSelection, updateSelection, type SelectionState } from './selection';
 import { createTiltCheck, isEngineerCheckPassed, updateTiltCheck } from './sensor-check';
@@ -70,6 +71,7 @@ export type Authority = 'local' | 'server';
 
 export interface ControllerOptions {
   readonly authority?: Authority;
+  readonly initialCrew?: CrewAbilityState;
 }
 
 export interface SensorChecks {
@@ -144,7 +146,7 @@ export function createMotionController(role: Role, options: ControllerOptions = 
 
   let selection: SelectionState = createSelection();
   let pendingProgress = 0;
-  let crew = createCrewAbilityState();
+  let crew = options.initialCrew ?? createCrewAbilityState();
   let blocked = false;
   let events: ControllerEvent[] = [];
 

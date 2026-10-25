@@ -7,8 +7,10 @@ import {
   MAX_TURN_DEG_PER_SEC,
   ROCKET_RADIUS,
   START_LANES,
+  OUTER_WALL,
 } from '../config.js';
-import { createStartPose, normalizeHeading, stepRocket, type RocketPose } from './physics.js';
+import { createStartPose, moveRocket, normalizeHeading, stepRocket, type RocketPose } from './physics.js';
+import { isDrivable } from '../course.js';
 
 const TURN_RAD_PER_SEC = (MAX_TURN_DEG_PER_SEC * Math.PI) / 180;
 const CENTER: RocketPose = { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2, heading: 0 };
@@ -98,38 +100,42 @@ describe('stepRocket turning', () => {
   });
 });
 
-describe('stepRocket arena clamp', () => {
-  const min = ROCKET_RADIUS;
-  const maxX = ARENA_WIDTH - ROCKET_RADIUS;
-  const maxY = ARENA_HEIGHT - ROCKET_RADIUS;
+function onCourse(pose: RocketPose, dtMs: number): RocketPose {
+  return moveRocket({ pose, steering: 0, wallSlowUntilMs: null }, false, 0, dtMs, createStartPose()).pose;
+}
+
+describe('movement on the course', () => {
+  const min = OUTER_WALL.minX + ROCKET_RADIUS;
+  const maxX = OUTER_WALL.maxX - ROCKET_RADIUS;
+  const maxY = OUTER_WALL.maxY - ROCKET_RADIUS;
 
   it('stops at the right edge and slides along it', () => {
     const diagonal: RocketPose = { x: maxX - 1, y: 400, heading: Math.PI / 4 };
-    const next = stepRocket(diagonal, 0, false, 1000);
+    const next = onCourse(diagonal, 1000);
     expect(next.x).toBe(maxX);
     expect(next.y).toBeCloseTo(400 + BASE_SPEED * Math.SQRT1_2);
   });
 
   it('stops at the left edge', () => {
-    const next = stepRocket({ x: min + 1, y: 400, heading: Math.PI }, 0, false, 1000);
+    const next = onCourse({ x: min + 1, y: 400, heading: Math.PI }, 1000);
     expect(next.x).toBe(min);
     expect(next.y).toBeCloseTo(400);
   });
 
   it('stops at the top edge and slides along it', () => {
-    const next = stepRocket({ x: 300, y: min + 1, heading: -Math.PI / 4 }, 0, false, 1000);
+    const next = onCourse({ x: 300, y: min + 1, heading: -Math.PI / 4 }, 1000);
     expect(next.y).toBe(min);
     expect(next.x).toBeCloseTo(300 + BASE_SPEED * Math.SQRT1_2);
   });
 
   it('stops at the bottom edge', () => {
-    const next = stepRocket({ x: 300, y: maxY - 1, heading: Math.PI / 2 }, 0, false, 1000);
+    const next = onCourse({ x: 300, y: maxY - 1, heading: Math.PI / 2 }, 1000);
     expect(next.y).toBe(maxY);
     expect(next.x).toBeCloseTo(300);
   });
 
   it('pulls an out-of-bounds pose back inside', () => {
-    expectInArena(stepRocket({ x: -500, y: 5000, heading: 0 }, 0, false, 0));
+    expect(isDrivable(onCourse({ x: -500, y: 5000, heading: 0 }, 0))).toBe(true);
   });
 });
 
@@ -149,7 +155,7 @@ describe('stepRocket input sanitizing', () => {
   });
 
   it('stays finite and inside the arena for a huge step', () => {
-    expectInArena(stepRocket(CENTER, 1, true, Number.MAX_VALUE));
+    expect(isDrivable(onCourse(CENTER, Number.MAX_VALUE))).toBe(true);
   });
 
   it('does not mutate the input pose', () => {

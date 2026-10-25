@@ -2,7 +2,9 @@ import { ABILITY_COST, CHARGE_INTERVAL_MS, CHARGE_ENERGY, MAX_ENERGY, SHARED_COO
 import type { RejectReason } from '../../shared/protocol';
 import type { AbilityPhase } from '../../shared/rules/abilities';
 import type { AppContext } from '../app';
-import { cooldownRemainingMs, effectRemainingMs, type CrewView } from '../crew-view';
+import { cooldownRemainingMs, createCrewView, effectRemainingMs, type CrewView } from '../crew-view';
+import { seatLabel } from '../../shared/copy';
+import { COUNTDOWN_NUMERAL_MS } from '../../shared/tokens';
 import type { ControllerEvent } from '../motion/controller';
 import { estimateRenderTime, sampleAt } from '../net/interpolate';
 import { seatRole, seatTeam, type RoomContext, type RoomEvent } from '../room-context';
@@ -16,6 +18,7 @@ import { createEngineerPanel, failureText, type EngineerView } from './engineer-
 import { controlTestStatus } from './lobby-screen';
 import { createPilotPanel } from './pilot-panel';
 import { createTestTopBar } from './top-bar';
+import { createHud } from './hud';
 
 // Control screen (Requirements 17.9, 19, 20): the Comet Pilot and Engineer
 // fly one server-owned rocket. Local feedback lands on the same frame; the
@@ -62,13 +65,22 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
   }
   const role = seatRole(seat);
   const team = seatTeam(seat);
-  const flies = team === 'comet';
+  const isMatch = room.roomState?.phase !== 'lobby';
+  const flies = isMatch || team === 'comet';
 
   const debug = createDebugPanel(ctx);
   const arena = el('div', { className: 'arena' });
   const strip = el('p', { className: 'control-strip', text: ROOM_COPY.controlTestLabel });
   const waiting = el('p', { className: 'arena-message', attrs: { 'aria-live': 'polite' } });
   const lobbyButton = button('Lobby', 'btn btn-small', () => ctx.go('lobby'));
+  const hud = createHud(team);
+  const countdown = el('div', { className: 'countdown-overlay', attrs: { 'aria-live': 'polite' } });
+  const numeral = el('strong', { className: 'countdown-numeral' });
+  countdown.append(numeral, el('p', { text: role === 'pilot' ? 'Tilt to steer' : 'Shake to charge' }));
+  countdown.hidden = true;
+  const recalibrate = button('Recalibrate', 'btn btn-small', () => { ctx.setupEntry = 'calibrate'; ctx.go('setup'); });
+  const pause = el('div', { className: 'pause-controls' }, recalibrate);
+  pause.hidden = true;
 
   const crewStatus = createCrewStatus();
   const pilot = flies && role === 'pilot' ? createPilotPanel(crewStatus.element) : null;
@@ -79,17 +91,20 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
   root.append(
     el(
       'main',
-      { className: `screen test-screen control-screen role-${role}` },
-      createTestTopBar(ctx, role === 'pilot' ? 'Pilot' : 'Engineer', debug.toggle, team, lobbyButton),
+      { className: `screen test-screen control-screen role-${role}${isMatch ? ' match-screen' : ''}` },
+      isMatch ? hud.element : createTestTopBar(ctx, role === 'pilot' ? 'Pilot' : 'Engineer', debug.toggle, team, lobbyButton),
       strip,
-      el('div', { className: 'middle' }, arena, waiting, debug.panel),
+      el('div', { className: 'middle' }, arena, waiting, pause, debug.panel, ...(isMatch ? [el('div', { className: 'match-debug' }, debug.toggle)] : [])),
       panel,
+      countdown,
     ),
   );
 
   // The crew's own rocket holds its height while the course scrolls (PRD 7.6).
   const canvas = createArenaCanvas(arena, { camera: 'chase' });
   const releaseWakeLock = holdWakeLock();
+  if (!ctx.sensorsActive) ctx.startSensors();
+  if (isMatch) waiting.setAttribute('aria-live', 'assertive');
   let rafId = 0;
   let lastRenderMs = 0;
   // Local prediction of the server's one-charge-per-second rule, used only to
@@ -155,6 +170,7 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
     const nowMs = Math.max(timeMs, lastRenderMs);
     lastRenderMs = nowMs;
     const matchId = room.liveMatchId;
+    panel.inert = isMatch && matchId === null;
     for (const event of ctx.controller.drainEvents()) handleEvent(event, matchId);
     const snap = ctx.controller.snapshot(nowMs);
 
@@ -165,23 +181,36 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
     if (engineer && room.crew.synced && room.crew.selectPending === null) ctx.controller.syncSelection(room.crew.selected);
 
     const renderSessionMs = estimateRenderTime(room.buffer, nowMs);
-    const pose = sampleAt(room.buffer, renderSessionMs);
+    const pose = sampleAt(room.buffer, renderSessionMs, isMatch ? team : 'comet');
+    const snapshot = room.matchState;
     const running = room.roomState?.activeMatchId != null && pose !== null;
-    if (running) {
+    if (snapshot?.mode === 'match') {
+      canvas.drawMatch(snapshot, { comet: sampleAt(room.buffer, renderSessionMs, 'comet') ?? snapshot.rockets.comet, nova: sampleAt(room.buffer, renderSessionMs, 'nova') ?? snapshot.rockets.nova }, team);
+      hud.update(snapshot);
+      room.recordRender(renderSessionMs, nowMs);
+      const counting = snapshot.phase === 'countdown';
+      const go = snapshot.phase === 'running' && snapshot.matchMs < COUNTDOWN_NUMERAL_MS && !snapshot.frozen;
+      countdown.hidden = !counting && !go;
+      countdown.classList.toggle('is-go', go);
+      setText(numeral, counting ? String(Math.max(1, Math.ceil(snapshot.countdownRemainingMs / COUNTDOWN_NUMERAL_MS))) : 'GO');
+      pause.hidden = !snapshot.frozen;
+    } else if (running) {
       const crew = room.crew;
       canvas.drawPose(pose, { active: crew.active, effectRemainingMs: effectRemainingMs(crew, nowMs) });
       room.recordRender(renderSessionMs, nowMs);
     } else {
       canvas.drawEmpty();
     }
-    const message = running && !room.matchState?.frozen && room.net.status === 'open' ? '' : waitingText(room);
+    const missing = room.roomState?.seats.find((s) => !s.connected || s.setup !== 'calibrated');
+    const message = isMatch && snapshot?.frozen ? `Paused · ${missing ? seatLabel(missing.seat) : 'Crew'} reconnecting` : running && !room.matchState?.frozen && room.net.status === 'open' ? '' : waitingText(room);
     setText(waiting, message);
     waiting.hidden = message === '';
-    strip.hidden = !running;
+    strip.hidden = isMatch || !running;
 
     pilot?.update({ ...snap, deadZoneDeg: ctx.settings.deadZoneDeg, fullScaleDeg: ctx.settings.fullScaleDeg });
-    crewStatus.update(room.crew, nowMs);
-    engineer?.update(engineerView(room.crew, nowMs, snap));
+    const view = snapshot?.mode === 'match' && snapshot.frozen ? createCrewView(snapshot.crews[team], nowMs) : room.crew;
+    crewStatus.update(view, nowMs);
+    engineer?.update(engineerView(view, nowMs, snap));
     debug.update(snap, nowMs);
   }
 

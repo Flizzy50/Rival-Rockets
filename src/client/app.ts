@@ -26,8 +26,14 @@ import { createRotateOverlay } from './ui/rotate-overlay';
 import { mountSetupScreen } from './ui/setup-screen';
 import { mountStartScreen } from './ui/start-screen';
 import { mountWatchScreen } from './ui/watch-screen';
+import { mountPracticeScreen } from './ui/practice-screen';
+import { mountResultsScreen } from './ui/results-screen';
+import { screenForPhase } from './flow';
 
 export type ScreenName =
+  | 'practice'
+  | 'match'
+  | 'results'
   // M2 rooms
   | 'home'
   | 'join'
@@ -59,6 +65,7 @@ export interface EnterRoomRequest {
 }
 
 export interface AppContext {
+  readonly practiced: Set<SeatId>;
   role: Role;
   setupEntry: SetupEntry;
   readonly capabilities: Capabilities;
@@ -94,6 +101,9 @@ export interface AppContext {
 export type ScreenMount = (root: HTMLElement, ctx: AppContext) => () => void;
 
 const SCREENS: Record<ScreenName, ScreenMount> = {
+  practice: mountPracticeScreen,
+  match: mountControlScreen,
+  results: mountResultsScreen,
   home: mountHomeScreen,
   join: mountJoinScreen,
   lobby: mountLobbyScreen,
@@ -108,11 +118,11 @@ const SCREENS: Record<ScreenName, ScreenMount> = {
 };
 
 // Fixed full-height layouts with the gesture lock (PRD 7.11).
-const LOCKED_SCREENS: ReadonlySet<ScreenName> = new Set(['pilot', 'engineer', 'control', 'room-watch']);
+const LOCKED_SCREENS: ReadonlySet<ScreenName> = new Set(['pilot', 'engineer', 'control', 'room-watch', 'match']);
 // Motion is only read on setup and control screens.
-const MOTION_SCREENS: ReadonlySet<ScreenName> = new Set(['setup', 'pilot', 'engineer', 'control']);
+const MOTION_SCREENS: ReadonlySet<ScreenName> = new Set(['setup', 'pilot', 'engineer', 'control', 'practice', 'match', 'lobby']);
 // Screens that need a seat; losing it sends the player back to the lobby.
-const SEATED_SCREENS: ReadonlySet<ScreenName> = new Set(['setup', 'control']);
+const SEATED_SCREENS: ReadonlySet<ScreenName> = new Set(['setup', 'control', 'practice', 'match']);
 
 export interface LiveRegions {
   readonly polite: HTMLElement;
@@ -165,6 +175,12 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
         const seated = next.seat !== null;
         if (hadSeat && !seated && SEATED_SCREENS.has(current)) ctx.go('lobby');
         hadSeat = seated;
+        if (next.roomState) {
+          const own = next.roomState.seats.find((s) => s.seat === next.seat);
+          if (seated && own?.setup === 'unverified' && current === 'match' && next.seat) { ctx.startSeat(next.seat); return; }
+          const target = screenForPhase(next.roomState.phase, seated, current);
+          if (target) ctx.go(target);
+        }
       }
     });
     room = next;
@@ -172,6 +188,7 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
   }
 
   const ctx: AppContext = {
+    practiced: new Set(),
     role: 'pilot',
     setupEntry: 'enable',
     capabilities: detectCapabilities(),
@@ -211,6 +228,7 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
       }
     },
     leaveRoom() {
+      ctx.practiced.clear();
       const r = room;
       clearSession();
       // Detach first, so a new room made right away gets a fresh connection.
@@ -225,6 +243,7 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
       ctx.go('home');
     },
     startSeat(seat) {
+      ctx.practiced.delete(seat);
       ctx.role = seatRole(seat);
       ctx.setupEntry = 'enable';
       ctx.go('setup');
@@ -245,10 +264,12 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
         onOrientation(sample) {
           controller.handleOrientation(sample, ctx.settings);
           for (const listener of listeners) listener.onOrientation?.(sample);
+          if (current === 'lobby') controller.drainEvents();
         },
         onMotion(sample) {
           controller.handleMotion(sample, ctx.settings);
           for (const listener of listeners) listener.onMotion?.(sample);
+          if (current === 'lobby') controller.drainEvents();
         },
       });
     },
@@ -277,6 +298,7 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
       cleanup = null;
       screenRoot.replaceChildren();
       current = name;
+      if (name === 'match' || name === 'control') ctx.resetController();
       if (!MOTION_SCREENS.has(name)) ctx.stopSensors();
       // Page-level overscroll is locked only on fixed match-style screens, so
       // menu screens keep normal scrolling and pinch-zoom.
@@ -316,7 +338,8 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
       await r.whenOpen();
       const reply = await r.request({ type: 'seat.reconnect', code: stored.code, seat: stored.seat, token: stored.token });
       if (reply.type === 'session.accepted' && reply.seat !== null) {
-        ctx.startSeat(reply.seat);
+        if (r.roomState?.phase === 'results') ctx.go('results');
+        else ctx.startSeat(reply.seat);
         return;
       }
     } catch {
