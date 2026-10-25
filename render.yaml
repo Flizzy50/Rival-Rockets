@@ -1,12 +1,12 @@
 # Render Blueprint. Node's version comes from .node-version.
-# Plan stays free until the user decides otherwise. From M2, rooms live in
-# process memory and free instances spin down when idle, which drops every
-# room; switch to a paid plan before the deployed device test or demo day.
+# Paid plan (user decision, October 2026): rooms live in process memory, and
+# free instances spin down when idle, which drops every room. Keep this in
+# sync with the dashboard; a Blueprint sync applies this value.
 services:
   - type: web
     name: rival-rockets
     runtime: node
-    plan: free
+    plan: 0.5c-512mb
     # Dev dependencies (Vite, TypeScript) are needed to build the client and server.
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start

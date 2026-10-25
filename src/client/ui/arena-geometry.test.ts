@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { EFFECT_FLICKER_MS } from '../../shared/tokens';
 import {
+  chaseArena,
+  fitArena,
   arrowheadPoints,
   BOOST_TRAIL_MULTIPLIER,
   boundsOf,
@@ -115,5 +117,34 @@ describe('effectAlpha', () => {
     expect(effectAlpha(0, false)).toBe(0);
     expect(effectAlpha(-5, false)).toBe(0);
     expect(effectAlpha(Number.NaN, false)).toBe(0);
+  });
+});
+
+describe('camera fits', () => {
+  it('letterboxes the whole arena inside the box', () => {
+    for (const [w, h] of [
+      [358, 430],
+      [300, 800],
+      [1000, 500],
+    ] as const) {
+      const f = fitArena(w, h, 600, 800);
+      expect(f.offsetX).toBeGreaterThanOrEqual(0);
+      expect(f.offsetY).toBeGreaterThanOrEqual(0);
+      expect(f.offsetX * 2 + 600 * f.scale).toBeCloseTo(w);
+      expect(f.offsetY * 2 + 800 * f.scale).toBeCloseTo(h);
+    }
+  });
+
+  it('keeps the followed height at the anchor and fills the width', () => {
+    for (const y of [18, 78, 400, 782]) {
+      const f = chaseArena(358, 430, 600, y, 0.5);
+      expect(f.offsetX).toBe(0);
+      expect(600 * f.scale).toBeCloseTo(358);
+      expect(f.offsetY + y * f.scale).toBeCloseTo(215);
+    }
+  });
+
+  it('holds the anchor for a non-finite height', () => {
+    expect(chaseArena(358, 430, 600, Number.NaN, 0.5).offsetY).toBe(215);
   });
 });

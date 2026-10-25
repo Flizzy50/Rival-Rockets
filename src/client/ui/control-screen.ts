@@ -87,7 +87,8 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
     ),
   );
 
-  const canvas = createArenaCanvas(arena);
+  // The crew's own rocket holds its height while the course scrolls (PRD 7.6).
+  const canvas = createArenaCanvas(arena, { camera: 'chase' });
   const releaseWakeLock = holdWakeLock();
   let rafId = 0;
   let lastRenderMs = 0;

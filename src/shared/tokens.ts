@@ -56,6 +56,10 @@ export const TOUCH_GAP_PX = 8;
 export const ACTIVATE_MIN_HEIGHT_PX = 96;
 export const MIN_ROCKET_CSS_PX = 28;
 export const CANVAS_MAX_DPR = 2;
+// Chase camera (PRD 7.6): fraction of the arena box height where the player's
+// own rocket stays on screen. Centered, because the ring course is flown up,
+// down, left, and right equally.
+export const CAMERA_ANCHOR_Y = 0.5;
 // Portrait match layout: HUD bar, arena, role panel.
 export const LAYOUT_FRACTIONS = { hud: 0.12, arena: 0.58, panel: 0.3 } as const;
 

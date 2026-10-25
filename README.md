@@ -65,7 +65,7 @@ Open `http://localhost:3000`. `http://localhost:3000/healthz` returns `ok`. Outs
 
 **Enabling the control test on the deployed site** (manual): in the Render dashboard, add the environment variable `RR_CONTROL_TEST=1` and redeploy. While it is on, anyone with the URL can fly the one Comet rocket (no score, no match). Remove it after the device test.
 
-**Paid instance** (manual user decision): `render.yaml` keeps `plan: free`. Free instances spin down after about 15 minutes idle and lose every in-memory room, which phones report as a lost connection. Switch to a paid instance in the dashboard before the deployed M2 latency test and demo day. Check current pricing when you provision.
+**Paid instance:** `render.yaml` sets `plan: 0.5c-512mb`, the paid tier chosen for the deployed tests and demo. Free instances spin down after about 15 minutes idle and lose every in-memory room, so do not switch back for real play. Keep the dashboard and `render.yaml` in sync, because a Blueprint sync applies the file's plan.
 
 `RR_TRUSTED_PROXY_HOPS=1` (in `render.yaml`) makes per-IP room limits use the address Render's proxy appends. Confirm on deploy that two phones on different networks get separate limits.
 

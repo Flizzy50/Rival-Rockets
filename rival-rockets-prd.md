@@ -60,7 +60,7 @@ No account, email address, app installation, or payment is required.
 - Rockets move forward automatically. Pilots control turning through tilt; neutral tilt maintains the current heading.
 - Touching a track wall slows the rocket and keeps it inside the playable course. Players cannot be permanently trapped or eliminated.
 - Rockets can bump each other. Ordinary bumps displace them slightly but do not remove points or cores.
-- The course remains visible on each phone. A spectator display may show a larger version of the same arena.
+- Each phone follows its own crew's rocket with a chase camera (Section 7.6); the course scrolls vertically past it. A spectator display shows the whole arena.
 
 **One-course starting geometry and physics (playtest values):** Use a 600 × 800 logical arena. The drivable clockwise ring is inside a rounded rectangle spanning `(24,24)` to `(576,776)` with corner radius 120, and outside a rounded rectangle spanning `(180,188)` to `(420,612)` with corner radius 80. A rocket is drawn about 48 world units long and collides as a radius-18 circle; keep its center within the ring with that margin. Both rockets start at `x=240`, heading right, in lanes `y=78` and `y=134`; Comet starts in the upper lane in the first match and lanes alternate on every later match in the room. These coordinates are one initial course, not a course editor or an additional course.
 
@@ -179,7 +179,7 @@ This section defines how the game looks, reads, and responds. Sizes, colors, and
 
 Flat 2D vector shapes on a deep-space background, with thin glowing outlines and minimal gradients. The style recalls classic vector arcade games with a modern flat UI. It is cheap to render on a canvas, high in contrast, resolution independent, and achievable without dedicated illustrators.
 
-- **Background:** Near-black navy with a sparse, static star field. Parallax is allowed only on the spectator display. No busy artwork behind the track.
+- **Background:** Near-black navy with a sparse star field fixed to the arena, so on phones it scrolls with the chase camera (Section 7.6). A separate parallax layer is allowed only on the spectator display. No busy artwork behind the track.
 - **Track:** A drivable surface slightly lighter than space, bounded by bright wall lines, so the playable area is obvious at a glance.
 - **Glow:** Reserved for rockets, cores, the next checkpoint, and ability effects. Use pre-rendered glow sprites or a single blurred duplicate stroke; avoid per-object canvas `shadowBlur` every frame, which is expensive on mid-range phones.
 - **Avoid:** Photographic textures, 3D, and text baked into images.
@@ -256,7 +256,7 @@ If a phone is rotated, show a full-screen "Turn your phone upright" overlay. Whi
 **Phone match layout (top to bottom):**
 
 1. **HUD bar (~12% of height):** Comet score, timer, Nova score, with carried-core pips (five slots) under each score. The player's own team side is marked with its glyph and halo color.
-2. **Arena (~58%):** The full course scaled to fit, never cropped or scrolled. The course shape is designed for a portrait aspect ratio of about 3:4.
+2. **Arena (~58%):** A chase camera. The course width fills the arena box, so it is never cropped left to right, and the player's own rocket moves left and right freely. Vertically, the rocket holds a fixed height on screen (centered; `CAMERA_ANCHOR_Y`) while the course and star field scroll past it, which gives the feeling of flying. Seats without a rocket of their own follow the rocket in play. With `prefers-reduced-motion`, the arena instead shows the full course letterboxed and unscrolled. The Watch and spectator views always show the full course. Because the opponent, the next gate, and cores can be off screen, Milestone 3 must add edge markers for them (shape and glyph, not color alone). The camera is a playtest choice (user decision, October 2026): validate readability and comfort on real phones.
 3. **Role panel (~30%):** Role-specific controls described below.
 
 ```text
@@ -267,7 +267,7 @@ Pilot                                  Engineer
 +--------------------------------+     +--------------------------------+
 |                                |     |                                |
 |          ARENA (canvas)        |     |          ARENA (canvas)        |
-|     full course, never cropped |     |     full course, never cropped |
+|  chase camera, own rocket fixed|     |  chase camera, own rocket fixed|
 |                                |     |                                |
 +--------------------------------+     +--------------------------------+
 |  L [-----|##|-----] R          |     |  ENERGY [##][##][  ][  ]  50   |
@@ -300,7 +300,7 @@ Pilot                                  Engineer
 **General layout rules**
 
 - Respect device safe areas with `env(safe-area-inset-*)`.
-- No scrolling during a match. Disable text selection and long-press callouts on match controls.
+- No page scrolling during a match; only the arena's chase camera moves. Disable text selection and long-press callouts on match controls.
 - Do not disable pinch-zoom on menu screens; restrict gestures only on the match arena and controls (Section 7.11).
 - Minimum touch target 48 × 48 CSS px with at least 8 px between targets.
 
@@ -357,7 +357,7 @@ Timing rules:
 
 - **Haptics:** The Vibration API is not available in every target browser (notably Safari on iPhone). Feature-detect it and treat haptics as a bonus.
 - **Sound:** Phones play short, low-volume UI sounds with a mute toggle in the HUD. The spectator display carries the main soundtrack and event sounds. Unlock audio from the same tap that enables motion, since browsers block autoplay without a user gesture.
-- **Reduced motion:** When `prefers-reduced-motion` is set, replace nudges, bursts, and pulses with color and opacity changes and disable starfield parallax. Gameplay movement is unchanged.
+- **Reduced motion:** When `prefers-reduced-motion` is set, replace nudges, bursts, and pulses with color and opacity changes disable starfield parallax, and replace the phone chase camera with the full, unscrolled course. Gameplay movement is unchanged.
 
 ### 7.9 UX copy and tone
 
@@ -417,7 +417,7 @@ The voice is short, energetic, and plain: a teammate calling the play, not a man
 ### 7.11 Implementation notes
 
 - Keep design tokens in one source (for example, a shared constants module that also emits the CSS custom properties) so the DOM and canvas never drift.
-- Scale the canvas by `devicePixelRatio`, capped at 2 for performance. Re-fit the course on viewport changes, letterboxing rather than cropping.
+- Scale the canvas by `devicePixelRatio`, capped at 2 for performance. Re-fit the course on viewport changes: letterbox the full-course views, and fit the chase camera to the arena width so it only crops vertically.
 - Target 60 fps on mid-range phones. If frame time exceeds budget, drop glow and particles first; never drop state interpolation.
 - Use the Screen Wake Lock API, where supported, to keep screens on during the lobby and match. Feature-detect it and re-acquire after the page becomes visible again.
 - On the match screen, apply `touch-action: none` to the arena and controls, `overscroll-behavior: none` to the page, and `user-select: none` plus `-webkit-touch-callout: none` to controls.
@@ -537,7 +537,7 @@ The first milestone is the main feasibility gate. Resolve sensor access and cont
 | Weak venue connectivity | Test the deployed endpoint from the venue network and prepare a separately tested network option. |
 | Engineer role feels repetitive | Keep shake bursts brief and make boost-versus-shield timing matter. Validate with players before adding extra actions. |
 | Shaking disrupts ability selection | Freeze selection while a shake is detected and require a stable tilt to switch. |
-| Players struggle to watch a moving phone | Keep the whole course readable and support a shared spectator screen. |
+| Players struggle to watch a moving phone | Keep the followed rocket at a fixed screen height, mark off-screen opponents and gates, and support a shared spectator screen. Fall back to the full-course view if playtests show the chase camera hurts readability. |
 | Glow and particle effects drop frame rate on mid-range phones | Use pre-rendered glow, cap canvas pixel ratio, and shed effects before interpolation (Section 7.11). |
 | Portrait grip feels wrong for pilots | Test grips in Milestone 1 and switch both roles to landscape together if needed (Section 7.6). |
 | Cores dominate or barely affect outcomes | Adjust core values, pickup placement, and respawn times based on observed matches. |

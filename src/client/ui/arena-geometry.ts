@@ -156,3 +156,27 @@ export function effectAlpha(remainingMs: number | undefined, reducedMotion: bool
   const dip = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
   return 1 - (1 - FLICKER_MIN_ALPHA) * dip;
 }
+
+// Where the arena sits in its box, in CSS px: world point (x, y) draws at
+// (offsetX + x * scale, offsetY + y * scale).
+export interface ViewFit {
+  readonly scale: number;
+  readonly offsetX: number;
+  readonly offsetY: number;
+}
+
+// Fixed view: the whole arena, letterboxed and never cropped. Used by the
+// Watch view, the sensor test, and the chase camera under reduced motion.
+export function fitArena(boxW: number, boxH: number, arenaW: number, arenaH: number): ViewFit {
+  const scale = Math.min(boxW / arenaW, boxH / arenaH);
+  return { scale, offsetX: (boxW - arenaW * scale) / 2, offsetY: (boxH - arenaH * scale) / 2 };
+}
+
+// Chase camera (PRD 7.6): the arena width fills the box, so x is never
+// cropped and the rocket moves left and right on screen, while the arena
+// slides vertically to keep focusY at `anchor` of the box height.
+export function chaseArena(boxW: number, boxH: number, arenaW: number, focusY: number, anchor: number): ViewFit {
+  const scale = boxW / arenaW;
+  const y = Number.isFinite(focusY) ? focusY : 0;
+  return { scale, offsetX: 0, offsetY: boxH * anchor - y * scale };
+}
