@@ -1,6 +1,7 @@
 import type { AppContext } from '../app';
 import { ROOM_COPY } from './copy';
 import { button, el } from './dom';
+import { heroArt } from './icons';
 
 // Home (PRD 6, 7.7): wordmark, pitch, Create room and Join room stacked full
 // width. The M1 sensor test stays reachable for device checks.
@@ -13,6 +14,7 @@ export function mountHomeScreen(root: HTMLElement, ctx: AppContext): () => void 
     el(
       'main',
       { className: 'screen menu-screen home-screen' },
+      heroArt(),
       el('h1', { className: 'wordmark', text: 'Rival Rockets', attrs: { tabindex: '-1' } }),
       el('p', { className: 'body-text pitch', text: ROOM_COPY.homePitch }),
       el(

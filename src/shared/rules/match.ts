@@ -1,12 +1,16 @@
 import { DROPPED_CORE_LIFETIME_MS, MATCH_DURATION_MS, MAX_DROPS_PER_BOOST, OWNER_RECLAIM_DELAY_MS, SIMULATION_HZ, WALL_SLOW_MS } from '../config.js';
 import { containPoint, containPose } from '../course.js';
-import type { TeamId } from '../protocol.js';
+import type { PublicMatchEvent, TeamId } from '../protocol.js';
 import { activateSelected, applyCharge, clearExpiredEffect, createCrewAbilityState, getAbilityStatus, selectAbility, type CrewAbilityState } from './abilities.js';
 import { ramOutcome, resolveContact } from './collisions.js';
 import type { InputResult, QueuedInput } from './control-test.js';
 import { createStartPose, moveRocket, type LaneOrder, type RocketState } from './physics.js';
 import { createCourseCores, expireAndRespawn, resolvePickups, type CourseCoreState, type DroppedCoreState } from './pickups.js';
-import { advanceCrossings, matchResult, type MatchResult } from './scoring.js';
+import { advanceCrossings, matchResult, nextGateIndex, type MatchResult } from './scoring.js';
+
+// Presentation events share the wire shape; the step only reports them.
+export type MatchEvent = PublicMatchEvent;
+export interface MatchStepResult { readonly state: MatchState; readonly results: InputResult[]; readonly events: MatchEvent[] }
 
 export const TEAMS = ['comet', 'nova'] as const;
 export interface CrewMatchState {
@@ -31,9 +35,13 @@ export function neutralMatchSteering(state: MatchState, team: TeamId): MatchStat
   const crew = state.crews[team];
   return { ...state, crews: { ...state.crews, [team]: { ...crew, rocket: { ...crew.rocket, steering: 0 } } } };
 }
-export function stepMatch(state: MatchState, inputs: readonly MatchInput[]): { state: MatchState; results: InputResult[] } {
-  if (state.complete || state.matchMs >= MATCH_DURATION_MS) return { state, results: inputs.map((i) => ({ seq: i.seq, kind: i.kind, status: 'rejected', reason: 'not-running' })) };
+export function stepMatch(state: MatchState, inputs: readonly MatchInput[]): MatchStepResult {
+  if (state.complete || state.matchMs >= MATCH_DURATION_MS) return { state, results: inputs.map((i) => ({ seq: i.seq, kind: i.kind, status: 'rejected', reason: 'not-running' })), events: [] };
   const now = state.matchMs;
+  const events: MatchEvent[] = [];
+  const gateEvents = (team: TeamId, before: number, after: number) => {
+    for (let c = before; c < after; c += 1) events.push({ kind: 'gate', matchMs: now, team, gate: nextGateIndex(c) });
+  };
   const crews = { ...state.crews };
   const timers = expireAndRespawn(state.course, state.dropped, now);
   const dropped = [...timers.dropped];
@@ -68,26 +76,43 @@ export function stepMatch(state: MatchState, inputs: readonly MatchInput[]): { s
   for (const team of TEAMS) {
     const crew = crews[team];
     const rocket = moveRocket(crew.rocket, active[team] === 'boost', now, dt, createStartPose(team, state.lanes));
-    crews[team] = { ...crew, rocket, crossings: advanceCrossings(crew.crossings, crew.rocket.pose, rocket.pose) };
+    const crossings = advanceCrossings(crew.crossings, crew.rocket.pose, rocket.pose);
+    gateEvents(team, crew.crossings, crossings);
+    crews[team] = { ...crew, rocket, crossings };
   }
   const contact = resolveContact({ comet: crews.comet.rocket.pose, nova: crews.nova.rocket.pose }, state.inContact, { comet: active.comet === 'shield', nova: active.nova === 'shield' });
   if (contact.bumped && contact.impact) {
     const impact = containPoint(contact.impact).point;
+    events.push({ kind: 'bump', matchMs: now, x: impact.x, y: impact.y });
     for (const attacker of TEAMS) {
       const victim = attacker === 'comet' ? 'nova' : 'comet';
-      if (ramOutcome(active[attacker] === 'boost', crews[attacker].dropsUsed >= MAX_DROPS_PER_BOOST, active[victim] === 'shield', crews[victim].carried) !== 'drop') continue;
+      const outcome = ramOutcome(active[attacker] === 'boost', crews[attacker].dropsUsed >= MAX_DROPS_PER_BOOST, active[victim] === 'shield', crews[victim].carried);
+      if (outcome === 'blocked') events.push({ kind: 'blocked', matchMs: now, attacker, victim, x: impact.x, y: impact.y });
+      if (outcome !== 'drop') continue;
       crews[attacker] = { ...crews[attacker], dropsUsed: crews[attacker].dropsUsed + 1 };
       crews[victim] = { ...crews[victim], carried: crews[victim].carried - 1 };
       dropped.push({ ...impact, id: nextDroppedId++, owner: victim, createdTick: state.tick, ownerUnlockAtMs: now + OWNER_RECLAIM_DELAY_MS, expiresAtMs: now + DROPPED_CORE_LIFETIME_MS });
+      events.push({ kind: 'drop', matchMs: now, attacker, victim, x: impact.x, y: impact.y });
     }
   }
   for (const team of TEAMS) {
     const crew = crews[team];
     const contained = containPose(contact[team], createStartPose(team, state.lanes));
-    crews[team] = { ...crew, rocket: { ...crew.rocket, pose: contained.pose, wallSlowUntilMs: contained.contact ? now + WALL_SLOW_MS : crew.rocket.wallSlowUntilMs }, crossings: advanceCrossings(crew.crossings, crew.rocket.pose, contained.pose) };
+    const crossings = advanceCrossings(crew.crossings, crew.rocket.pose, contained.pose);
+    gateEvents(team, crew.crossings, crossings);
+    crews[team] = { ...crew, rocket: { ...crew.rocket, pose: contained.pose, wallSlowUntilMs: contained.contact ? now + WALL_SLOW_MS : crew.rocket.wallSlowUntilMs }, crossings };
+  }
+  for (const team of TEAMS) {
+    // Only the first contact of a slide is an event; scraping along a wall
+    // keeps renewing the slow, which would otherwise flash every step.
+    const before = state.crews[team].rocket.wallSlowUntilMs;
+    const after = crews[team].rocket.wallSlowUntilMs;
+    const wasSlowed = before !== null && now < before;
+    if (after !== before && !wasSlowed) events.push({ kind: 'wall', matchMs: now, team, x: crews[team].rocket.pose.x, y: crews[team].rocket.pose.y });
   }
   const pickups = resolvePickups({ paths: { comet: { from: state.crews.comet.rocket.pose, to: crews.comet.rocket.pose }, nova: { from: state.crews.nova.rocket.pose, to: crews.nova.rocket.pose } }, carried: { comet: crews.comet.carried, nova: crews.nova.carried }, course: timers.course, dropped, tick: state.tick, nowMs: now });
   for (const team of TEAMS) crews[team] = { ...crews[team], carried: pickups.carried[team] };
+  for (const c of pickups.collected) events.push({ kind: 'pickup', matchMs: now, team: c.team, x: c.x, y: c.y });
   const tick = state.tick + 1, matchMs = matchMsAt(tick), complete = matchMs >= MATCH_DURATION_MS;
-  return { state: { ...state, tick, matchMs, crews, course: pickups.course, dropped: pickups.dropped, nextDroppedId, inContact: contact.overlapping, complete, result: complete ? matchResult(crews) : null }, results };
+  return { state: { ...state, tick, matchMs, crews, course: pickups.course, dropped: pickups.dropped, nextDroppedId, inContact: contact.overlapping, complete, result: complete ? matchResult(crews) : null }, results, events };
 }

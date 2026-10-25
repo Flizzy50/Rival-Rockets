@@ -1,21 +1,25 @@
 import { CORE_DIAMETER, CORE_SPAWNS, DROPPED_CORE_LIFETIME_MS, INNER_WALL, OUTER_WALL, PRACTICE_RINGS, PRACTICE_RING_RADIUS, PREVIEW_ARENA_HEIGHT, PREVIEW_ARENA_WIDTH, PREVIEW_ROCKET_LENGTH, ROCKET_RADIUS, START_LANES } from '../../shared/config';
 import { GATES } from '../../shared/course';
-import type { MatchSnapshotMessage, TeamId } from '../../shared/protocol';
+import type { MatchSnapshotMessage, PublicMatchEvent, TeamId } from '../../shared/protocol';
 import type { Ability } from '../../shared/rules/abilities';
 import type { RocketPose } from '../../shared/rules/physics';
-import { CAMERA_ANCHOR_Y, CANVAS_MAX_DPR, color, MIN_ROCKET_CSS_PX, STAR_COUNT, MIN_CORE_CSS_PX, YOU_TAG_MS, OWN_HALO_PX, EDGE_MARKER_SIZE_PX, EDGE_MARKER_INSET_PX, FONT_BODY } from '../../shared/tokens';
+import { CAMERA_ANCHOR_Y, CANVAS_MAX_DPR, color, EVENT_BURST_MAX_MS, MIN_ROCKET_CSS_PX, STAR_COUNT, MIN_CORE_CSS_PX, YOU_TAG_MS, OWN_HALO_PX, EDGE_MARKER_SIZE_PX, EDGE_MARKER_INSET_PX, FONT_BODY, FONT_DISPLAY, WALL_FLICKER_MS, type ColorName } from '../../shared/tokens';
 import type { PreviewRocket } from '../preview/rocket-preview';
 import {
   arrowheadPoints,
+  burstRays,
   chaseArena,
   chevronPoints,
   effectAlpha,
+  effectProgress,
   fitArena,
+  gatePulseAlpha,
   hexagonPoints,
   shieldRadius,
   speedLines,
   TRAIL_CHEVRON_COUNT,
   trailChevrons,
+  wallContact,
   type Point,
   type ViewFit,
   NOVA_BODY_HEIGHT, NOVA_FIN_SPAN, NOVA_FIN_LENGTH, NOVA_DOT_RADIUS, CORE_RING_RATIO, OWN_HALO_RATIO, LABEL_OFFSET_RATIO, GATE_LINE_PX, GATE_DASH_PX, edgeMarkers, type MarkerObject,
@@ -23,13 +27,14 @@ import {
 
 // Arena (PRD 7.2, 7.4, 7.6, 7.8, 7.11). Two cameras:
 // - fixed: the 600x800 logical arena letterboxed into its box, never cropped
-//   (Watch view, sensor test, and reduced motion);
+//   (Watch and spectator views, practice, and the sensor test);
 // - chase: the arena width fills the box and the arena slides vertically so
 //   the followed rocket stays at CAMERA_ANCHOR_Y; flying up or down moves the
 //   starfield past a rocket that holds its height on screen.
 // The arena and its stars are rendered once into an offscreen layer, and the
 // rocket glow into a sprite, so a frame is a fill and a few drawImage calls
-// and no frame uses shadowBlur.
+// and no frame uses shadowBlur. Event effects (M5) are a few strokes each and
+// are the first thing shed when frames run long.
 
 export type CameraMode = 'fixed' | 'chase';
 
@@ -61,6 +66,23 @@ const SHIELD_FILL_ALPHA = 0.08;
 // Chase only: the arena edge scrolls with the stars, so it is drawn as a wall
 // line to keep the playable area obvious (PRD 7.2).
 const EDGE_LINE_PX = 2;
+// M5 effects, in world units unless noted.
+const NEXT_GATE_HALO_PX = 10;
+const GATE_FLASH_PX = 7;
+const BURST_RAYS = 8;
+const BURST_RADIUS = 44;
+const SPARK_RAYS = 4;
+const SPARK_RADIUS = 16;
+const BLOCKED_RAYS = 6;
+const BLOCKED_RADIUS = 34;
+const EFFECT_LINE_PX = 2.5;
+const WALL_FLASH_HALF_LENGTH = 34;
+const WALL_FLASH_PX = 5;
+// The pickup streak rises toward the HUD by this share of the box height.
+const STREAK_RISE = 0.35;
+const LABEL_PX = 16;
+const ROCKET_FLICKER_ALPHA = 0.35;
+const ROCKET_FLICKER_HZ_MS = 50;
 
 // Field names match PublicCrewState, so a match.state crew can be passed as is.
 export interface RocketEffects {
@@ -69,9 +91,19 @@ export interface RocketEffects {
   readonly effectRemainingMs?: number;
 }
 
+interface LiveEffect {
+  readonly event: PublicMatchEvent;
+  readonly startMs: number;
+}
+
 export interface ArenaCanvas {
-  drawMatch(snapshot: MatchSnapshotMessage, poses: Readonly<Record<TeamId, RocketPose>>, ownTeam: TeamId | null): void;
-  drawPractice(pose: RocketPose, ringsDone: number): void;
+  drawMatch(snapshot: MatchSnapshotMessage, poses: Readonly<Record<TeamId, RocketPose>>, ownTeam: TeamId | null, nowMs?: number): void;
+  // M5: start the burst, flash, or spark for one server event (PRD 7.8).
+  addEffect(event: PublicMatchEvent, nowMs: number): void;
+  // Long frames shed bursts and pulses first (PRD 7.11).
+  setShedding(shedding: boolean): void;
+  // The player's own silhouette flies the practice rings.
+  drawPractice(pose: RocketPose, ringsDone: number, team?: TeamId): void;
   // M1 sensor test preview: the rocket alone, as before.
   draw(rocket: PreviewRocket): void;
   // M2: a server pose with its Comet chevron trail and optional ability effect.
@@ -102,8 +134,8 @@ function tracePolyline(context: CanvasRenderingContext2D, points: readonly Point
   if (close) context.closePath();
 }
 
-function prefersReducedMotion(): MediaQueryList | null {
-  return typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+function teamColor(team: TeamId): ColorName {
+  return team === 'comet' ? 'team-comet' : 'team-nova';
 }
 
 export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOptions = {}): ArenaCanvas {
@@ -112,7 +144,7 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
   canvas.setAttribute('aria-hidden', 'true');
   container.append(canvas);
   const context = canvas.getContext('2d');
-  const reducedMotion = prefersReducedMotion();
+  const chasing = options.camera === 'chase';
 
   let boxW = 0;
   let boxH = 0;
@@ -125,19 +157,15 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
   let rocketLengthPx = 0;
   // Where the chase camera looks while nothing is flying: the start lane.
   let focusY: number = START_LANES.comet.y;
-
-  // A scrolling view is the kind of motion reduced-motion users opt out of,
-  // so they get the full fixed course instead (PRD 7.8). Gameplay is the same.
-  function chasing(): boolean {
-    return options.camera === 'chase' && !(reducedMotion?.matches ?? false);
-  }
+  let effects: LiveEffect[] = [];
+  let shedding = false;
 
   function viewScale(): number {
-    return chasing() ? chaseArena(boxW, boxH, PREVIEW_ARENA_WIDTH, 0, CAMERA_ANCHOR_Y).scale : fixedFit.scale;
+    return chasing ? chaseArena(boxW, boxH, PREVIEW_ARENA_WIDTH, 0, CAMERA_ANCHOR_Y).scale : fixedFit.scale;
   }
 
   function currentFit(): ViewFit {
-    return chasing() ? chaseArena(boxW, boxH, PREVIEW_ARENA_WIDTH, focusY, CAMERA_ANCHOR_Y) : fixedFit;
+    return chasing ? chaseArena(boxW, boxH, PREVIEW_ARENA_WIDTH, focusY, CAMERA_ANCHOR_Y) : fixedFit;
   }
 
   function renderArenaLayer(scale: number): void {
@@ -223,8 +251,6 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
 
   const observer = new ResizeObserver(resize);
   observer.observe(container);
-  // Switching reduced motion swaps cameras, which changes the scale.
-  reducedMotion?.addEventListener('change', resize);
   resize();
 
   // Context is translated to the rocket center and rotated to its heading.
@@ -232,7 +258,7 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
   // so the base trail stays steady: it is team identity, not an effect.
   function drawTrail(g: CanvasRenderingContext2D, boostAlpha: number, team: TeamId = 'comet'): void {
     const boosted = boostAlpha > 0;
-    g.strokeStyle = color(team === 'comet' ? 'team-comet' : 'team-nova');
+    g.strokeStyle = color(teamColor(team));
     g.fillStyle = g.strokeStyle;
     g.lineWidth = TRAIL_LINE_PX * dpr;
     g.lineJoin = 'miter';
@@ -272,26 +298,29 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
     g.globalAlpha = 1;
   }
 
-  // Letterbox or off-arena space, then the arena layer where the camera puts it.
+  // Letterbox or off-arena space, then the arena layer where the camera puts
+  // it. The chase camera shades space past the arena ends so the course edge
+  // reads while scrolling; the fixed view letterboxes in plain space, so a
+  // wide spectator screen shows one sky rather than side bars.
   function drawArena(fit: ViewFit): void {
     if (!context || !arenaLayer) return;
     context.setTransform(1, 0, 0, 1, 0, 0);
-    context.fillStyle = color('bg-surface');
+    context.fillStyle = color(chasing ? 'bg-surface' : 'bg-space');
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(arenaLayer, fit.offsetX * dpr, fit.offsetY * dpr);
   }
 
   // Shared by both draw paths so the M1 preview keeps its output: with no
   // trail requested, only the arena and the sprite are drawn.
-  function render(x: number, y: number, heading: number, withTrail: boolean, effects?: RocketEffects): void {
+  function render(x: number, y: number, heading: number, withTrail: boolean, rocketEffects?: RocketEffects, team: TeamId = 'comet'): void {
     if (!context || !sprite) return;
     if (Number.isFinite(y)) focusY = y;
     const fit = currentFit();
     drawArena(fit);
-    drawRocket({ x, y, heading }, fit, withTrail, effects, 'comet');
+    drawRocket({ x, y, heading }, fit, withTrail, rocketEffects, team, 1);
   }
 
-  function drawRocket(pose: RocketPose, fit: ViewFit, withTrail: boolean, effects: RocketEffects | undefined, team: TeamId): void {
+  function drawRocket(pose: RocketPose, fit: ViewFit, withTrail: boolean, rocketEffects: RocketEffects | undefined, team: TeamId, bodyAlpha: number): void {
     if (!context || !sprite) return;
     const left = fit.offsetX * dpr;
     const top = fit.offsetY * dpr;
@@ -305,16 +334,112 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
     context.translate(left + pose.x * k, top + pose.y * k);
     context.rotate(pose.heading);
 
-    const active = effects?.active ?? null;
-    const alpha = active ? effectAlpha(effects?.effectRemainingMs, reducedMotion?.matches ?? false) : 0;
+    const active = rocketEffects?.active ?? null;
+    const alpha = active ? effectAlpha(rocketEffects?.effectRemainingMs) : 0;
     if (withTrail) drawTrail(context, active === 'boost' ? alpha : 0, team);
+    context.globalAlpha = bodyAlpha;
     context.drawImage(team === 'nova' && novaSprite ? novaSprite : sprite, -spriteSize / 2, -spriteSize / 2);
+    context.globalAlpha = 1;
     if (active === 'shield' && alpha > 0) drawShield(context, alpha);
     context.restore();
   }
 
+  // A rocket that just hit a wall flickers briefly (PRD 7.8).
+  function rocketAlpha(team: TeamId, nowMs: number): number {
+    const hit = effects.find((e) => e.event.kind === 'wall' && e.event.team === team && nowMs - e.startMs < WALL_FLICKER_MS);
+    if (!hit) return 1;
+    return Math.floor((nowMs - hit.startMs) / ROCKET_FLICKER_HZ_MS) % 2 === 0 ? ROCKET_FLICKER_ALPHA : 1;
+  }
+
+  function strokeRays(g: CanvasRenderingContext2D, cx: number, cy: number, count: number, inner: number, outer: number): void {
+    g.beginPath();
+    for (const ray of burstRays(count, inner, outer)) {
+      g.moveTo(cx + ray.from.x, cy + ray.from.y);
+      g.lineTo(cx + ray.to.x, cy + ray.to.y);
+    }
+    g.stroke();
+  }
+
+  // One-shot effects in arena coordinates; x/y map world units to canvas px.
+  function drawEffects(g: CanvasRenderingContext2D, fit: ViewFit, nowMs: number): void {
+    const k = fit.scale * dpr;
+    const x = (v: number) => (fit.offsetX + v * fit.scale) * dpr;
+    const y = (v: number) => (fit.offsetY + v * fit.scale) * dpr;
+    effects = effects.filter((e) => nowMs - e.startMs < EVENT_BURST_MAX_MS);
+    g.lineCap = 'round';
+    for (const { event, startMs } of effects) {
+      const t = effectProgress(startMs, nowMs, EVENT_BURST_MAX_MS);
+      const fade = 1 - t;
+      g.globalAlpha = fade;
+      switch (event.kind) {
+        case 'gate': {
+          // The gate flashes in the crossing team's color.
+          const gate = GATES[event.gate];
+          if (!gate) break;
+          g.strokeStyle = color(teamColor(event.team));
+          g.lineWidth = GATE_FLASH_PX * dpr;
+          g.beginPath(); g.moveTo(x(gate.a.x), y(gate.a.y)); g.lineTo(x(gate.b.x), y(gate.b.y)); g.stroke();
+          break;
+        }
+        case 'pickup': {
+          // The core streaks up toward the HUD pips.
+          const sx = x(event.x), sy = y(event.y);
+          const ey = sy - boxH * STREAK_RISE * dpr * t;
+          g.strokeStyle = color('core');
+          g.lineWidth = EFFECT_LINE_PX * dpr;
+          g.beginPath(); g.moveTo(sx, sy - (sy - ey) * 0.4); g.lineTo(sx, ey); g.stroke();
+          g.fillStyle = color('core');
+          g.beginPath(); g.arc(sx, ey, Math.max(CORE_DIAMETER * fit.scale, MIN_CORE_CSS_PX) * dpr * 0.35, 0, Math.PI * 2); g.fill();
+          break;
+        }
+        case 'drop': {
+          // Burst at the impact: an expanding ring, plus rays when frames allow.
+          const r = BURST_RADIUS * k * (0.3 + 0.7 * t);
+          g.strokeStyle = color('danger');
+          g.lineWidth = EFFECT_LINE_PX * dpr;
+          g.beginPath(); g.arc(x(event.x), y(event.y), r, 0, Math.PI * 2); g.stroke();
+          if (!shedding) { g.strokeStyle = color('core'); strokeRays(g, x(event.x), y(event.y), BURST_RAYS, r * 0.5, r * 1.1); }
+          break;
+        }
+        case 'blocked': {
+          g.strokeStyle = color('shield');
+          g.lineWidth = EFFECT_LINE_PX * dpr;
+          if (!shedding) strokeRays(g, x(event.x), y(event.y), BLOCKED_RAYS, BLOCKED_RADIUS * k * 0.3, BLOCKED_RADIUS * k * (0.6 + 0.4 * t));
+          g.fillStyle = color('shield');
+          g.font = `700 ${LABEL_PX * dpr}px ${FONT_DISPLAY}`;
+          g.textAlign = 'center';
+          g.textBaseline = 'bottom';
+          g.fillText('BLOCKED', x(event.x), y(event.y) - BLOCKED_RADIUS * k);
+          g.textAlign = 'start';
+          g.textBaseline = 'alphabetic';
+          break;
+        }
+        case 'bump': {
+          if (shedding) break;
+          g.strokeStyle = color('text-primary');
+          g.lineWidth = EFFECT_LINE_PX * dpr * 0.8;
+          strokeRays(g, x(event.x), y(event.y), SPARK_RAYS, SPARK_RADIUS * k * 0.3, SPARK_RADIUS * k * (0.5 + 0.5 * t));
+          break;
+        }
+        case 'wall': {
+          // The wall line itself flashes where the rocket touched it.
+          const { point, tangent } = wallContact(event);
+          g.strokeStyle = color('gate-next');
+          g.lineWidth = WALL_FLASH_PX * dpr;
+          g.beginPath();
+          g.moveTo(x(point.x - tangent.x * WALL_FLASH_HALF_LENGTH), y(point.y - tangent.y * WALL_FLASH_HALF_LENGTH));
+          g.lineTo(x(point.x + tangent.x * WALL_FLASH_HALF_LENGTH), y(point.y + tangent.y * WALL_FLASH_HALF_LENGTH));
+          g.stroke();
+          break;
+        }
+      }
+    }
+    g.globalAlpha = 1;
+    g.lineCap = 'butt';
+  }
+
   return {
-    drawMatch(snapshot, poses, ownTeam) {
+    drawMatch(snapshot, poses, ownTeam, nowMs = performance.now()) {
       if (!context) return;
       const g = context;
       focusY = poses[ownTeam ?? 'comet'].y;
@@ -324,18 +449,28 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
       drawArena(fit);
       g.save();
       g.beginPath(); g.rect(x(0), y(0), PREVIEW_ARENA_WIDTH * k, PREVIEW_ARENA_HEIGHT * k); g.clip();
-      g.lineWidth = GATE_LINE_PX * dpr;
       g.font = `${EDGE_MARKER_SIZE_PX * dpr}px ${FONT_BODY}`;
       const markers: MarkerObject[] = [];
+      const pulse = shedding ? 0 : gatePulseAlpha(nowMs);
       GATES.forEach((gate, index) => {
         const teams = (['comet', 'nova'] as const).filter((t) => (ownTeam === null || ownTeam === t) && snapshot.crews[t].nextGate === index);
-        g.strokeStyle = color(teams.length ? 'gate-next' : 'gate-idle');
-        g.setLineDash(teams.length ? [] : [GATE_DASH_PX * dpr]);
+        const next = teams.length > 0;
+        if (next && pulse > 0) {
+          // The next gate breathes with a wide, faint duplicate stroke (PRD 7.8).
+          g.globalAlpha = pulse;
+          g.strokeStyle = color('gate-next');
+          g.lineWidth = NEXT_GATE_HALO_PX * dpr;
+          g.beginPath(); g.moveTo(x(gate.a.x), y(gate.a.y)); g.lineTo(x(gate.b.x), y(gate.b.y)); g.stroke();
+          g.globalAlpha = 1;
+        }
+        g.lineWidth = GATE_LINE_PX * dpr;
+        g.strokeStyle = color(next ? 'gate-next' : 'gate-idle');
+        g.setLineDash(next ? [] : [GATE_DASH_PX * dpr]);
         g.beginPath(); g.moveTo(x(gate.a.x), y(gate.a.y)); g.lineTo(x(gate.b.x), y(gate.b.y)); g.stroke();
         g.setLineDash([]);
         g.fillStyle = color('text-primary');
-        if (teams.length) g.fillText(teams.map((t) => t === 'comet' ? '▲' : '●').join(' '), x((gate.a.x + gate.b.x) / 2), y((gate.a.y + gate.b.y) / 2));
-        if (ownTeam && teams.length) markers.push({ kind: 'gate', x: (gate.a.x + gate.b.x) / 2, minY: Math.min(gate.a.y, gate.b.y), maxY: Math.max(gate.a.y, gate.b.y) });
+        if (next) g.fillText(teams.map((t) => t === 'comet' ? '▲' : '●').join(' '), x((gate.a.x + gate.b.x) / 2), y((gate.a.y + gate.b.y) / 2));
+        if (ownTeam && next) markers.push({ kind: 'gate', x: (gate.a.x + gate.b.x) / 2, minY: Math.min(gate.a.y, gate.b.y), maxY: Math.max(gate.a.y, gate.b.y) });
       });
       function core(cx: number, cy: number, life?: number, owner?: TeamId): void {
         const diameter = Math.max(CORE_DIAMETER * fit.scale, MIN_CORE_CSS_PX) * dpr;
@@ -350,14 +485,18 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
       g.restore();
       for (const team of ['comet', 'nova'] as const) {
         const pose = poses[team];
-        drawRocket(pose, fit, true, snapshot.crews[team], team);
+        drawRocket(pose, fit, true, snapshot.crews[team], team, rocketAlpha(team, nowMs));
         if (team === ownTeam) {
           g.strokeStyle = color('text-primary'); g.fillStyle = color('text-primary'); g.lineWidth = OWN_HALO_PX * dpr;
           g.beginPath(); g.arc(x(pose.x), y(pose.y), rocketLengthPx * OWN_HALO_RATIO, 0, Math.PI * 2); g.stroke();
           if (snapshot.matchMs < YOU_TAG_MS) g.fillText('YOU', x(pose.x), y(pose.y) - rocketLengthPx * LABEL_OFFSET_RATIO);
         } else if (ownTeam) markers.push({ kind: 'opponent', x: pose.x, minY: pose.y - ROCKET_RADIUS, maxY: pose.y + ROCKET_RADIUS });
       }
-      if (chasing() && ownTeam) for (const marker of edgeMarkers(fit, boxW, boxH, markers)) {
+      g.save();
+      g.beginPath(); g.rect(x(0), y(0), PREVIEW_ARENA_WIDTH * k, PREVIEW_ARENA_HEIGHT * k); g.clip();
+      drawEffects(g, fit, nowMs);
+      g.restore();
+      if (chasing && ownTeam) for (const marker of edgeMarkers(fit, boxW, boxH, markers)) {
         g.font = `${EDGE_MARKER_SIZE_PX * dpr}px ${FONT_BODY}`;
         g.textAlign = 'center'; g.textBaseline = 'middle';
         g.fillStyle = color(marker.kind === 'core' ? 'core' : marker.kind === 'gate' ? 'gate-next' : ownTeam === 'comet' ? 'team-nova' : 'team-comet');
@@ -366,8 +505,14 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
       }
       g.textAlign = 'start'; g.textBaseline = 'alphabetic';
     },
-    drawPractice(pose, ringsDone) {
-      render(pose.x, pose.y, pose.heading, true);
+    addEffect(event, nowMs) {
+      effects.push({ event, startMs: nowMs });
+    },
+    setShedding(value) {
+      shedding = value;
+    },
+    drawPractice(pose, ringsDone, team = 'comet') {
+      render(pose.x, pose.y, pose.heading, true, undefined, team);
       if (!context) return;
       const fit = currentFit();
       PRACTICE_RINGS.forEach((ring, i) => {
@@ -379,15 +524,14 @@ export function createArenaCanvas(container: HTMLElement, options: ArenaCanvasOp
     draw(rocket) {
       render(rocket.x, rocket.y, rocket.headingRad, false);
     },
-    drawPose(pose, effects) {
-      render(pose.x, pose.y, pose.heading, true, effects);
+    drawPose(pose, rocketEffects) {
+      render(pose.x, pose.y, pose.heading, true, rocketEffects);
     },
     drawEmpty() {
       drawArena(currentFit());
     },
     destroy() {
       observer.disconnect();
-      reducedMotion?.removeEventListener('change', resize);
       canvas.remove();
     },
   };

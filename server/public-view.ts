@@ -8,6 +8,7 @@ import {
   type RoomPhase,
   type TeamId,
   type PublicCrewState,
+  type PublicMatchEvent,
   type PublicPose,
   type RejectReason,
   type RoomStateMessage,
@@ -15,8 +16,8 @@ import {
 import { getAbilityStatus, type CrewAbilityState } from '../src/shared/rules/abilities.js';
 import type { ControlTestState, InputResult } from '../src/shared/rules/control-test.js';
 import type { Room } from './rooms.js';
-import { MATCH_DURATION_MS } from '../src/shared/config.js';
-import type { MatchState } from '../src/shared/rules/match.js';
+import { MATCH_DURATION_MS, MATCH_EVENTS_PER_SNAPSHOT_MAX } from '../src/shared/config.js';
+import type { MatchEvent, MatchState } from '../src/shared/rules/match.js';
 import { nextGateIndex, teamScore, type MatchResult, type ScoreBreakdown } from '../src/shared/rules/scoring.js';
 
 // Public_View (Requirements 5.3, 5.4): every outgoing state object is built
@@ -113,7 +114,17 @@ export function toPublicResult(result: MatchResult, matchId: number): PublicMatc
   const score = (b: ScoreBreakdown) => ({ crossings: b.crossings, checkpointPoints: b.checkpointPoints, carried: b.carried, corePoints: b.corePoints, total: b.total });
   return { matchId, outcome: result.outcome, winner: result.winner, teams: { comet: score(result.teams.comet), nova: score(result.teams.nova) } };
 }
-export function toMatchSnapshot(state: MatchState, phase: MatchSnapshotMessage['phase'], frozen: boolean, countdownRemainingMs: number, resumeRemainingMs = 0): MatchSnapshotMessage {
+export function toPublicEvent(event: MatchEvent): PublicMatchEvent {
+  switch (event.kind) {
+    case 'gate': return { kind: 'gate', matchMs: event.matchMs, team: event.team, gate: event.gate };
+    case 'pickup': return { kind: 'pickup', matchMs: event.matchMs, team: event.team, x: event.x, y: event.y };
+    case 'drop':
+    case 'blocked': return { kind: event.kind, matchMs: event.matchMs, attacker: event.attacker, victim: event.victim, x: event.x, y: event.y };
+    case 'bump': return { kind: 'bump', matchMs: event.matchMs, x: event.x, y: event.y };
+    case 'wall': return { kind: 'wall', matchMs: event.matchMs, team: event.team, x: event.x, y: event.y };
+  }
+}
+export function toMatchSnapshot(state: MatchState, phase: MatchSnapshotMessage['phase'], frozen: boolean, countdownRemainingMs: number, resumeRemainingMs = 0, events: readonly MatchEvent[] = []): MatchSnapshotMessage {
   const crew = (team: TeamId) => {
     const c = state.crews[team];
     return { ...toCrew(c.abilities, state.matchMs), crossings: c.crossings, nextGate: nextGateIndex(c.crossings), carried: c.carried, score: teamScore(c.crossings, c.carried) };
@@ -125,6 +136,7 @@ export function toMatchSnapshot(state: MatchState, phase: MatchSnapshotMessage['
     crews: { comet: crew('comet'), nova: crew('nova') },
     courseCores: state.course.map((c) => ({ available: c.respawnAtMs === null })),
     droppedCores: state.dropped.map((c) => ({ id: c.id, x: c.x, y: c.y, owner: c.owner, lockRemainingMs: Math.max(0, c.ownerUnlockAtMs - state.matchMs), lifeRemainingMs: Math.max(0, c.expiresAtMs - state.matchMs) })),
+    events: events.slice(0, MATCH_EVENTS_PER_SNAPSHOT_MAX).map(toPublicEvent),
   };
 }
 export function toMatchAck(state: MatchState, team: TeamId, result: InputResult): InputAck {

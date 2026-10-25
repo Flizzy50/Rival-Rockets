@@ -2,6 +2,7 @@ import { createCalibration, updateCalibration, type CalibrationState } from '../
 import { readingsTimedOut } from '../motion/sensor-check';
 import { EVENT_BURST_MAX_MS, HAPTIC_SHAKE_MS } from '../../shared/tokens';
 import type { AppContext } from '../app';
+import { unlockAudio } from '../audio';
 import { pulse } from '../haptics';
 import { requestMotionPermission } from '../sensors';
 import { holdWakeLock } from '../wake-lock';
@@ -194,6 +195,9 @@ export function mountSetupScreen(root: HTMLElement, ctx: AppContext): () => void
   // Shared by Enable motion and Try again so a retry also comes from a tap.
   function onEnableTap(): void {
     const permission = requestMotionPermission();
+    // Same tap, after the permission calls: browsers allow audio only from a
+    // gesture, and iOS needs requestPermission first inside it (PRD 7.8).
+    unlockAudio();
     releaseWakeLock ??= holdWakeLock();
     setPhase('requesting');
     void permission.then((result) => {

@@ -166,6 +166,10 @@ export const MATCH_DURATION_MS = 90000;
 export const START_COUNTDOWN_MS = 3000;
 // After a pause, play resumes only after this countdown with all four seats usable (PRD 8).
 export const RESUME_COUNTDOWN_MS = 3000;
+// M5: presentation events carried by one snapshot. A step yields about ten at
+// most and a snapshot covers about two steps, so this only bounds a stall's
+// backlog; extra events are cosmetic and dropped.
+export const MATCH_EVENTS_PER_SNAPSHOT_MAX = 32;
 // Practice is local and deliberately starts empty (M3 development values).
 export const PRACTICE_RINGS = [{ x: 460, y: 106 }, { x: 498, y: 360 }, { x: 380, y: 694 }] as const;
 export const PRACTICE_RING_RADIUS = 40;

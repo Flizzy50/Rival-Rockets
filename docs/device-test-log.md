@@ -68,7 +68,7 @@ Target for comparison: p95 ≤ 150 ms (PRD 2). It's a target to measure, not a r
 - [ ] Gates score only in order and forward; driving backward or circling one gate scores nothing (AC6).
 - [ ] Cores: pickups, five-core cap, respawn, boosted ram drop, Shield block, owner lockout, dropped-core expiry; all phones agree on ownership and score (AC7).
 - [ ] Walls slow the rocket and never trap it; bumps push without taking points.
-- [ ] The chase camera keeps the own rocket at a fixed height; edge markers show the opponent, next gate, and cores off screen and are readable; reduced motion shows the full course.
+- [ ] The chase camera keeps the own rocket at a fixed height; edge markers show the opponent, next gate, and cores off screen and are readable.
 - [ ] Grayscale: the two rockets, scores, and ability states stay distinguishable (AC13 foundation).
 - [ ] At 90 s every phone shows the same result and breakdown; a tie shows DRAW (AC8).
 - [ ] Turn off Wi-Fi on one phone for under 15 s: the match freezes with "Paused · [Seat] reconnecting", then resumes. Over 15 s: all phones return to the lobby with "Match interrupted. A player couldn't reconnect." Disconnect during the countdown: everyone returns to the lobby.
@@ -93,3 +93,23 @@ Agents did not run any of these checks; they need four physical phones and the d
 - [ ] The next match starts with the lanes swapped (Comet lower).
 - [ ] One crewmate taps Swap roles: "Waiting for teammate". Tapping again cancels. Both tap: they exchange seats, must redo setup and practice, and the host stays the same person.
 - [ ] After a swap, reload a swapped phone: it reclaims its new seat (the new token was saved).
+
+# M5 device test log (presentation)
+
+Agents did not run any of these checks on phones. A desktop headless browser rendered Home, the phone-sized Watch view, the 1080p spectator view, TIME!, and Results during a scripted four-seat match; that confirms layout only, not device behavior. Use the M3 table columns above and put "M5" in the scenario. Same privacy rules.
+
+## M5 scenario checklist
+
+- [ ] Palette on real phones in a lit room: text, walls, idle and next gates, and cores are readable at arm's length (PRD 7.3).
+- [ ] Grayscale (phone accessibility setting): the two rockets, scores, pips, and ability states stay distinguishable (AC13).
+- [ ] Nova players see cyan role controls (energy meter, ability tiles, Activate); Comet players see orange.
+- [ ] Enable motion also unlocks sound: charge blip, selection tick, error tone, cooldown tick on the engineer; gate chime, pickup blip, boost/shield sound for the own crew. Mute in the HUD silences them and the choice survives a reload in the same tab.
+- [ ] Haptics on Android: 30 ms per charge, 80 ms on the victim crew's phones when a core is knocked out, 50 ms on the pilot's phone at a wall hit. iPhone shows the same events without vibration.
+- [ ] Gate: flashes in team color, "+25" pops by the score, the next gate breathes. Core: streak up, "+10", pip pops. Boosted ram: burst, "−10", danger flash on the pip. Shield block: spark and "BLOCKED". Bump: small spark. Wall: wall flash and rocket flicker.
+- [ ] All four phones and the spectator show the same events at about the same moment.
+- [ ] At 90 s every screen holds with "TIME!" for about half a second, then Results.
+- [ ] Spectator on a laptop or projector at 1080p: crew panels, large timer, and ticker are readable from about 4 m. Sound toggle turns the room's audio on.
+- [ ] A phone or tablet watching in landscape shows no rotate overlay.
+- [ ] Frame rate on the slowest presentation phone during a busy match (debug panel or browser tools). Record whether effects were shed.
+- [ ] Initial load over venue Wi-Fi: record transferred bytes (build output is about 122 KB compressed for HTML, CSS, JS, and the four woff2 fonts; not measured on a network).
+- [ ] Three consecutive complete matches on the demonstration setup (M5 exit).

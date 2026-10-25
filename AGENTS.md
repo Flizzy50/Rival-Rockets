@@ -76,15 +76,15 @@
 
 ## UI/UX rules (PRD Section 7)
 
-- Style: neon vector arcade. Flat 2D shapes, dark navy space background, glow only on rockets, cores, next gate, and ability effects.
-- Use only the defined color tokens. Team Comet = orange `#FF9F1C`, Team Nova = cyan `#2EC4F1`, cores = magenta `#E86BFF`. Dark text on team-colored buttons.
+- Style: neon vector arcade. Flat 2D shapes, indigo-black space background, glow only on rockets, cores, next gate, and ability effects.
+- Use only the defined color tokens (PRD 7.3). The neutrals and gold `--accent` follow the HackPSU Fall 2026 palette (colors only: no HackPSU logo, images, or fonts). Team Comet = orange `#FF9F1C`, Team Nova = cyan `#2EC4F1`, cores = magenta `#E86BFF`. Dark text on team-colored and accent buttons.
 - Team identity always uses color + rocket silhouette + trail pattern + glyph + label. Never rely on color alone.
 - Fonts: Space Grotesk (display) and Inter (body), self-hosted, `font-display: swap`. Use tabular figures for scores, timer, energy, and cooldowns. Avoid ambiguous characters (0/O, 1/I/L) in room codes.
-- Phone layout is portrait: HUD bar, chase-camera arena, role panel (PRD 7.6). The arena fits the course width, holds the own rocket at a fixed screen height, and scrolls the course vertically; reduced motion, Watch, and spectator views show the full uncropped course. No page scrolling in matches. Show a "Turn your phone upright" overlay when rotated.
+- Phone layout is portrait: HUD bar, chase-camera arena, role panel (PRD 7.6). The arena fits the course width, holds the own rocket at a fixed screen height, and scrolls the course vertically; Watch and spectator views show the full uncropped course. No page scrolling in matches. Show a "Turn your phone upright" overlay when rotated.
 - Touch targets are at least 48 × 48 CSS px with at least 8 px spacing. Activate is at least 96 px tall. Respect safe-area insets.
 - Local input feedback appears on the same frame. Never shake the screen or camera on phones. Animations never block input or delay authoritative state.
 - Haptics and sound are optional. Feature-detect the Vibration API and unlock audio from the motion-enable tap. All information must also be visible. Provide a mute toggle.
-- Honor `prefers-reduced-motion`.
+- Do not add `prefers-reduced-motion` handling; it was removed by user decision in M5 (PRD 7.8, 7.10). Do not reintroduce it without asking.
 - Render the HUD, scores, and controls as DOM over the canvas. Use `aria-live` as specified in 7.10.
 - Use the PRD copy and tone (7.9): short, energetic, plain; errors say what to do next and never blame the player.
 - Canvas: scale by `devicePixelRatio` capped at 2, letterbox full-course views and crop the chase camera only vertically, avoid per-frame `shadowBlur`, and shed glow and particles before dropping interpolation. Target 60 fps and an initial load under about 500 KB compressed.

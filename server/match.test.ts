@@ -84,6 +84,20 @@ describe('M3 server lifecycle and authorization', () => {
     w.sweep();
     expect(w.sim.roomStatus(w.code)).toMatchObject({ phase: 'lobby', result: null, returnReason: 'interrupted' });
   });
+  it('sends each presentation event in exactly one snapshot', () => {
+    const w = world();
+    w.send(0, { type: 'match.start' }); w.advance(3000);
+    const id = w.sim.current(w.code)!.matchId;
+    const countdownSnapshots = w.messages.filter((m) => m.type === 'match.state' && m.mode === 'match');
+    expect(countdownSnapshots.every((m) => m.type === 'match.state' && m.mode === 'match' && m.events.length === 0)).toBe(true);
+    for (let i = 0; i < 60; i += 1) w.advance(20);
+    const events = w.messages.flatMap((m) => (m.type === 'match.state' && m.mode === 'match' && m.matchId === id ? m.events : []));
+    // Both rockets start left of the top gate heading right, so each crosses it once.
+    expect(events.filter((e) => e.kind === 'gate')).toEqual([
+      expect.objectContaining({ team: 'comet', gate: 0 }),
+      expect.objectContaining({ team: 'nova', gate: 0 }),
+    ]);
+  });
   it('resumes after usable controls and keeps completed results frozen when players leave', () => {
     const w = world();
     w.send(0, { type: 'match.start' }); w.advance(3000); w.advance(100);

@@ -1,7 +1,7 @@
 # Rival Rockets
 ## Product requirements document
 
-**Version:** 1.2 (resolves MVP control, course, room, and rematch decisions) · **Date:** October 24, 2026 · **Status:** Proposed specification for a hackathon MVP
+**Version:** 1.3 (Milestone 5 presentation: HackPSU-inspired palette, event feedback, spectator display; reduced-motion support removed) · **Date:** October 25, 2026 · **Status:** Proposed specification for a hackathon MVP
 
 **Product pitch:** Four friends turn their phones into the controls for two rival rockets. Pilots tilt to steer while engineers shake to generate power and choose when to boost or shield. The crew that coordinates best wins a 90-second space race.
 
@@ -186,6 +186,8 @@ This section defines how the game looks, reads, and responds. Sizes, colors, and
 
 Flat 2D vector shapes on a deep-space background, with thin glowing outlines and minimal gradients. The style recalls classic vector arcade games with a modern flat UI. It is cheap to render on a canvas, high in contrast, resolution independent, and achievable without dedicated illustrators.
 
+**Theme reference (Milestone 5, user decision, October 2026):** The neutral palette follows the [HackPSU Fall 2026 site](https://hackpsu.org/): indigo-black space, steel-blue walls and gates, cream text, and a gold accent. Only colors are adopted. HackPSU's name, logo, images, and decorative fonts are not used, and team, core, shield, and danger colors keep their values so team identity and the contrast and color-vision checks still hold.
+
 - **Background:** Near-black navy with a sparse star field fixed to the arena, so on phones it scrolls with the chase camera (Section 7.6). A separate parallax layer is allowed only on the spectator display. No busy artwork behind the track.
 - **Track:** A drivable surface slightly lighter than space, bounded by bright wall lines, so the playable area is obvious at a glance.
 - **Glow:** Reserved for rockets, cores, the next checkpoint, and ability effects. Use pre-rendered glow sprites or a single blurred duplicate stroke; avoid per-object canvas `shadowBlur` every frame, which is expensive on mid-range phones.
@@ -197,25 +199,27 @@ Define colors once as design tokens (CSS custom properties) and share the same v
 
 | Token | Hex | Use |
 | --- | --- | --- |
-| `--bg-space` | `#0B0E1A` | App and arena background; text on team-colored buttons |
-| `--bg-surface` | `#161B2E` | Panels, cards, HUD bars |
-| `--bg-track` | `#141A30` | Drivable track surface |
-| `--line-wall` | `#6B76C2` | Track walls |
-| `--gate-idle` | `#5A64A0` | Inactive checkpoint gates (dashed) |
+| `--bg-space` | `#08091A` | App and arena background; text on team-colored and accent buttons |
+| `--bg-surface` | `#1A1734` | Panels, cards, HUD bars |
+| `--bg-track` | `#111022` | Drivable track surface |
+| `--line-wall` | `#64A5C3` | Track walls |
+| `--gate-idle` | `#4F7FA0` | Inactive checkpoint gates (dashed) |
 | `--gate-next` | `#FFFFFF` | Own crew's next checkpoint (solid, pulsing) |
-| `--text-primary` | `#F2F4FF` | Main text |
-| `--text-secondary` | `#A9B1D6` | Labels and hints |
+| `--text-primary` | `#EEE5CD` | Main text |
+| `--text-secondary` | `#ADA6C4` | Labels and hints |
+| `--accent` | `#E2C75E` | Wordmark, countdown, TIME! banner, and primary buttons on screens without a seat (Milestone 5) |
 | `--team-comet` | `#FF9F1C` | Team Comet (orange) |
 | `--team-nova` | `#2EC4F1` | Team Nova (cyan) |
 | `--core` | `#E86BFF` | Collectible cores (magenta, distinct from both teams) |
 | `--shield` | `#E6F7FF` | Shield bubble outline |
-| `--success` | `#5BE38F` | Ready, connected, calibrated |
-| `--warning` | `#FFC857` | Paused, reconnecting, final 10 seconds |
+| `--success` | `#88D960` | Ready, connected, calibrated |
+| `--warning` | `#F5B90C` | Paused, reconnecting, final 10 seconds |
 | `--danger` | `#FF5C6C` | Errors, denied permission, failed activation, lost core |
 
-Approximate contrast ratios calculated from these values against `--bg-space`: primary text about 17:1, secondary text about 9:1, both team colors about 9:1, core about 7:1, danger about 6:1, and idle gates about 3.4:1. Walls are about 4:1 against the track surface. Re-check with a contrast tool after any palette change.
+Contrast ratios calculated from these values against `--bg-space`: primary text about 15.7:1, secondary text about 8.5:1, both team colors about 9.6:1, accent about 11.8:1, core about 7.5:1, danger about 6.6:1, walls about 7.3:1, and idle gates about 4.6:1. Against the lighter `--bg-surface`, every text token stays at or above 5.7:1 and idle gates at about 4:1. An automated check (`src/shared/tokens.test.ts`) recomputes these against all three backgrounds. Re-check with a contrast tool after any palette change.
 
-- Team-colored buttons use dark `--bg-space` text. White text on orange or cyan fails contrast.
+- Team-colored and accent buttons use dark `--bg-space` text. White text on orange, cyan, or gold fails contrast.
+- On a seated player's screens, primary buttons and role controls use that player's team color. Screens without a seat (Home, Join, sensor-test menus) use the accent.
 - Energy meters fill with the crew's team color, reinforcing identity instead of adding another color.
 - Orange and cyan differ along the blue–yellow axis, which remains distinguishable for the most common red–green color vision deficiencies. Verify with a color-vision simulator (for example, Chrome DevTools vision-deficiency emulation) and a grayscale check; shapes and labels cover remaining cases.
 
@@ -262,8 +266,8 @@ If a phone is rotated, show a full-screen "Turn your phone upright" overlay. Whi
 
 **Phone match layout (top to bottom):**
 
-1. **HUD bar (~12% of height):** Comet score, timer, Nova score, with carried-core pips (five slots) under each score. The player's own team side is marked with its glyph and halo color.
-2. **Arena (~58%):** A chase camera. The course width fills the arena box, so it is never cropped left to right, and the player's own rocket moves left and right freely. Vertically, the rocket holds a fixed height on screen (centered; `CAMERA_ANCHOR_Y`) while the course and star field scroll past it, which gives the feeling of flying. Seats without a rocket of their own follow the rocket in play. With `prefers-reduced-motion`, the arena instead shows the full course letterboxed and unscrolled. The Watch and spectator views always show the full course. Because the opponent, the next gate, and cores can be off screen, Milestone 3 must add edge markers for them (shape and glyph, not color alone). The camera is a playtest choice (user decision, October 2026): validate readability and comfort on real phones.
+1. **HUD bar (~12% of height):** Comet score, timer, Nova score, with carried-core pips (five slots) under each score. The player's own team side is marked with its glyph and halo color. A 48 px icon-only mute toggle sits under the timer (Section 7.8).
+2. **Arena (~58%):** A chase camera. The course width fills the arena box, so it is never cropped left to right, and the player's own rocket moves left and right freely. Vertically, the rocket holds a fixed height on screen (centered; `CAMERA_ANCHOR_Y`) while the course and star field scroll past it, which gives the feeling of flying. Seats without a rocket of their own follow the rocket in play. The chase camera is used regardless of the `prefers-reduced-motion` setting (Milestone 5 decision, Section 7.10). The Watch and spectator views always show the full course. Because the opponent, the next gate, and cores can be off screen, Milestone 3 must add edge markers for them (shape and glyph, not color alone). The camera is a playtest choice (user decision, October 2026): validate readability and comfort on real phones.
 3. **Role panel (~30%):** Role-specific controls described below.
 
 ```text
@@ -315,17 +319,17 @@ Pilot                                  Engineer
 
 | Screen | Layout and behavior |
 | --- | --- |
-| Home | Wordmark, one-line pitch, primary **Create room** and secondary **Join room** stacked full width. Small note: "Needs 4 phones with motion sensors." |
+| Home | Code-drawn hero art of both rockets racing for a gate, wordmark in the accent color, one-line pitch, primary **Create room** and secondary **Join room** stacked full width. Small note: "Needs 4 phones with motion sensors." Menu screens share a sparse, fixed star field with the arena. |
 | Join | Large auto-uppercase room code field and a display-name field limited to the Section 8 length. Inline validation with a specific message, e.g. "No room with that code." |
 | Lobby | Room code at the top with QR code and **Share link** (Web Share API where available, copy-to-clipboard otherwise). Two team columns, each with Pilot and Engineer slot cards. Slot states: Open (dashed outline, "Tap to join"), Taken, Calibrated, Ready (success check), Disconnected (warning). A Ready toggle at the bottom. The creator's Start button stays disabled with a specific reason, e.g. "Waiting for Nova Engineer to calibrate." A Watch link opens the spectator view. |
 | Motion setup | Three-step indicator: Enable → Check → Calibrate. **Enable motion** is a direct user tap. Check shows a dot that moves with tilt; engineers also see "Shake once" with a pop on success. Calibrate asks the player to hold their playing position and tap **Set neutral**, followed by a one-second hold ring. |
-| Practice | Pilot steers a ghost rocket through three rings (~10 s). Engineer shakes to fill two segments, selects Shield, and activates. A "PRACTICE" watermark shows inputs do not count. **Skip** appears after the first success. |
+| Practice | The Section 4 role tutorial as a short numbered list, one idea per line (same words). Pilot steers a ghost of their own team's rocket through three rings (~10 s). Engineer shakes to fill two segments, selects Shield, and activates. A "PRACTICE" watermark shows inputs do not count. **Skip** appears after the first success. |
 | Countdown | Full-screen 3-2-1-GO numerals, one second each, with a role reminder underneath ("Tilt to steer" / "Shake to charge"). |
 | Match | Layout from Section 7.6. In the final 10 seconds the timer turns warning color and pulses once per second on every screen. |
 | Paused | Dimmed, frozen arena with "Paused · Nova Engineer reconnecting" and a 15-second countdown bar. **Recalibrate** is available. On resume, show "Resuming in 3…". |
 | Results | Headline "COMET WINS" in team color with the winning silhouette, or "DRAW" in neutral white. A per-team breakdown: checkpoints × 25, cores × 10, total. Primary **Rematch**, secondary **Swap roles**, and each player's ready state. |
 | Interrupted | Neutral styling with no winner: "Match interrupted. A player couldn't reconnect." Single **Back to lobby** button. |
-| Spectator (16:9 landscape) | Large centered arena with both crews' next gates marked. Side panels per team: crew names and roles, score, core pips, energy, ability state. Timer top center. An event ticker along the bottom, e.g. "NOVA rammed COMET · core dropped". |
+| Spectator (16:9 landscape) | Large centered arena with both crews' next gates marked. Side panels per team: crew names and roles, score, core pips, energy, ability state. Timer top center. An event ticker along the bottom, e.g. "NOVA rammed COMET · core dropped". This is the Watch view on a landscape screen at least 900 × 500 CSS px; narrower or portrait Watch screens keep the compact layout (seat list, HUD, full course, ticker). A sound toggle in the top bar unlocks and mutes the display's audio. Watch screens never show the rotate overlay, since they send no input. |
 | Errors | Full-screen card with what happened and what to do next, plus **Create room** and **Join room**. Used for room expiry and server restarts. |
 
 On Results, each player sees the next-round Ready state. The host's **Rematch** returns everyone to the lobby with a fresh match and all Ready states cleared; the host starts its countdown only after four connected, calibrated players become ready again. **Swap roles** applies within one crew only after both teammates tap it on Results. Swapped players repeat the check, calibration, and practice for their new role. A result never changes when later players leave or swap roles.
@@ -362,9 +366,11 @@ Timing rules:
 | Bump | Small spark at the contact point | None |
 | Match end | Frame freezes for 0.5 s with a "TIME!" banner, then results | Horn |
 
+- **Event delivery (Milestone 5):** Gate crossings, pickups, rams that drop a core, Shield blocks, first-contact bumps, and the first wall contact of a slide come from the server with the next snapshot, as small presentation events with their match time and position. Each event is sent once and every screen shows the same one. A client shows an event when its interpolated view reaches that match time, so a burst lands on the rocket that caused it. Events are cosmetic: scores and core ownership always come from the snapshot fields. Ability activations are seen from the crew state on every screen.
 - **Haptics:** The Vibration API is not available in every target browser (notably Safari on iPhone). Feature-detect it and treat haptics as a bonus.
-- **Sound:** Phones play short, low-volume UI sounds with a mute toggle in the HUD. The spectator display carries the main soundtrack and event sounds. Unlock audio from the same tap that enables motion, since browsers block autoplay without a user gesture.
-- **Reduced motion:** When `prefers-reduced-motion` is set, replace nudges, bursts, and pulses with color and opacity changes disable starfield parallax, and replace the phone chase camera with the full, unscrolled course. Gameplay movement is unchanged.
+- **Sound:** Phones play short, low-volume UI sounds with a mute toggle in the HUD. Phones sound only their own crew's events; the spectator display plays every event sound at a higher volume. There is no music track in the MVP. Unlock audio from the same tap that enables motion, since browsers block autoplay without a user gesture; the mute and spectator sound toggles also unlock it. Sounds are synthesized in the browser, so there are no audio files to download.
+- **Frame budget:** When the average frame time exceeds about 22 ms (below about 45 fps), shed burst rays, bump sparks, and the next-gate pulse; restore them once it falls below about 18 ms. Rings, flashes, labels, and interpolation stay.
+- **Reduced motion (removed in Milestone 5, user decision, October 2026):** The game does not change its animations or camera for `prefers-reduced-motion`. See Section 7.10.
 
 ### 7.9 UX copy and tone
 
@@ -445,6 +451,17 @@ The voice is short, energetic, and plain: a teammate calling the play, not a man
 | Results, non-host | "Waiting for the host to start a rematch" |
 | Rematch/role-swap hint | The Section 4 hint text |
 | Host-only action refused | "Only the host can do that." |
+| **Presentation (Milestone 5, proposed until approved)** | |
+| Match end banner | "TIME!" |
+| Shield block (arena) | "BLOCKED" |
+| Score pops (HUD) | "+25" (gate), "+10" (core), "−10" (core lost) |
+| Mute toggle (screen reader) | "Mute sound", pressed while muted |
+| Watch title | "Watching" |
+| Ticker: ram drop | "[TEAM] rammed [TEAM] · core dropped", e.g. "NOVA rammed COMET · core dropped" |
+| Ticker: Shield block | "[TEAM] shield blocked [TEAM]", victim first, e.g. "NOVA shield blocked COMET" |
+| Ticker: pickup | "[TEAM] grabbed a core" |
+| Ticker: gate | "[TEAM] cleared gate [1–4]" |
+| Ticker: ability | "[TEAM] boosted" / "[TEAM] shield up" |
 
 ### 7.10 Accessibility
 
@@ -454,7 +471,7 @@ The voice is short, energetic, and plain: a teammate calling the play, not a man
 - Render the HUD, scores, and controls as DOM elements over the canvas so they scale with text settings and are exposed to assistive technology. Use an `aria-live="polite"` region for lobby changes and results, and `aria-live="assertive"` for pauses and errors.
 - All information conveyed by sound or haptics is also visible.
 - Menu screens remain usable at 200% text size. The match HUD may use fixed sizes because of space constraints.
-- Respect `prefers-reduced-motion` (Section 7.8).
+- **Motion sensitivity (Milestone 5 decision):** The game does not honor `prefers-reduced-motion`. The phone chase camera always scrolls, and pulses, bursts, and nudges always animate. Players who are sensitive to on-screen motion can use the Watch view, which shows the full, unscrolled course. No screen or camera shake is ever used on phones (Section 7.8). This is a known accessibility limitation of the MVP.
 - Physical motion is the core mechanic, so players who cannot tilt or shake a phone are limited to spectating or the development touch/keyboard controls (Section 6). Full WCAG conformance requires manual testing with assistive technologies and expert accessibility review; this specification does not claim it.
 
 ### 7.11 Implementation notes

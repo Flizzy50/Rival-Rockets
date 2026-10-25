@@ -1,4 +1,4 @@
-import { BROADCAST_INTERVAL_MS, RESUME_COUNTDOWN_MS, START_COUNTDOWN_MS, STEP_MS } from '../src/shared/config.js';
+import { BROADCAST_INTERVAL_MS, MATCH_EVENTS_PER_SNAPSHOT_MAX, RESUME_COUNTDOWN_MS, START_COUNTDOWN_MS, STEP_MS } from '../src/shared/config.js';
 import { SEAT_IDS, type PublicMatchResult, type RejectReason, type ReturnReason, type RoomPhase, type SeatId, type ServerMessage } from '../src/shared/protocol.js';
 import {
   createControlTest,
@@ -10,7 +10,7 @@ import {
 import { cometCrewReady, type SeatsState } from '../src/shared/rules/seats.js';
 import { MAX_CATCH_UP_STEPS } from './config.js';
 import { rejectedAck, toAck, toMatchState, toMatchAck, toMatchSnapshot, toPublicResult } from './public-view.js';
-import { createMatch, neutralMatchSteering, stepMatch, type MatchInput, type MatchState } from '../src/shared/rules/match.js';
+import { createMatch, neutralMatchSteering, stepMatch, type MatchEvent, type MatchInput, type MatchState } from '../src/shared/rules/match.js';
 
 // Simulation (PRD 8): owns each room's control test or match, its input
 // queue, the fixed-step accumulator, pause and resume, and the room phase.
@@ -68,6 +68,8 @@ interface MatchRuntime {
   // Set while a paused match counts down to resume; the match stays frozen.
   resumeEndsAtMs: number | null;
   queue: Array<{ input: MatchInput; connectionId: string }>;
+  // Presentation events since the last broadcast; each is sent once.
+  events: MatchEvent[];
   countdownEndsAtMs: number; accumulatorMs: number; lastLoopMs: number; nextBroadcastMs: number;
   occupants: Record<SeatId, string | null>;
 }
@@ -131,7 +133,9 @@ export function createSimulation(deps: SimulationDeps): Simulation {
       runtime.frozen,
       runtime.phase === 'countdown' ? Math.max(0, runtime.countdownEndsAtMs - now) : 0,
       runtime.resumeEndsAtMs === null ? 0 : Math.max(0, runtime.resumeEndsAtMs - now),
+      runtime.events,
     ));
+    runtime.events = [];
   }
   // No winner: the room goes back to the lobby so seats can be refilled (PRD 8).
   function discard(code: string, runtime: MatchRuntime, reason: ReturnReason): void {
@@ -179,6 +183,7 @@ export function createSimulation(deps: SimulationDeps): Simulation {
       runtime.queue = [];
       const out = stepMatch(runtime.state, batch.map((b) => b.input));
       runtime.state = out.state;
+      if (runtime.events.length < MATCH_EVENTS_PER_SNAPSHOT_MAX) runtime.events.push(...out.events);
       out.results.forEach((result, i) => { const item = batch[i]; if (item) deps.sendTo(item.connectionId, toMatchAck(runtime.state, item.input.team, result)); });
       runtime.accumulatorMs -= STEP_MS;
       steps += 1;
@@ -230,7 +235,7 @@ export function createSimulation(deps: SimulationDeps): Simulation {
       const now = deps.nowMs();
       const occupants = Object.fromEntries(SEAT_IDS.map((seat) => [seat, seats.seats[seat].occupantId])) as Record<SeatId, string | null>;
       const lanes = (playedMatches.get(code) ?? 0) % 2 === 0 ? 'comet-upper' : 'comet-lower';
-      const runtime: MatchRuntime = { state: createMatch(nextMatchId++, lanes), phase: 'countdown', frozen: false, resumeEndsAtMs: null, queue: [], countdownEndsAtMs: now + START_COUNTDOWN_MS, accumulatorMs: 0, lastLoopMs: now, nextBroadcastMs: now, occupants };
+      const runtime: MatchRuntime = { state: createMatch(nextMatchId++, lanes), phase: 'countdown', frozen: false, resumeEndsAtMs: null, queue: [], events: [], countdownEndsAtMs: now + START_COUNTDOWN_MS, accumulatorMs: 0, lastLoopMs: now, nextBroadcastMs: now, occupants };
       matches.set(code, runtime);
       returnReasons.delete(code);
       broadcastMatch(code, runtime);

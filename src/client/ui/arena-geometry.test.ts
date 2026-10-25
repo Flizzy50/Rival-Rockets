@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { EFFECT_FLICKER_MS } from '../../shared/tokens';
+import { EFFECT_FLICKER_MS, GATE_PULSE_PERIOD_MS } from '../../shared/tokens';
 import {
+  burstRays,
+  effectProgress,
+  GATE_PULSE_MAX_ALPHA,
+  GATE_PULSE_MIN_ALPHA,
+  gatePulseAlpha,
+  wallContact,
   chaseArena,
   fitArena,
   arrowheadPoints,
@@ -10,7 +16,6 @@ import {
   effectAlpha,
   FLICKER_MIN_ALPHA,
   hexagonPoints,
-  REDUCED_MOTION_ENDING_ALPHA,
   shieldRadius,
   speedLines,
   TRAIL_CHEVRON_COUNT,
@@ -88,16 +93,16 @@ describe('shield hexagon', () => {
 
 describe('effectAlpha', () => {
   it('shows the effect in full when no remaining time is supplied', () => {
-    expect(effectAlpha(undefined, false)).toBe(1);
+    expect(effectAlpha(undefined)).toBe(1);
   });
 
   it('is fully visible at the start and until the final window', () => {
-    expect(effectAlpha(2000, false)).toBe(1);
-    expect(effectAlpha(EFFECT_FLICKER_MS, false)).toBe(1);
+    expect(effectAlpha(2000)).toBe(1);
+    expect(effectAlpha(EFFECT_FLICKER_MS)).toBe(1);
   });
 
   it('flickers between the minimum and full opacity in the final window', () => {
-    const samples = Array.from({ length: EFFECT_FLICKER_MS - 1 }, (_, i) => effectAlpha(i + 1, false));
+    const samples = Array.from({ length: EFFECT_FLICKER_MS - 1 }, (_, i) => effectAlpha(i + 1));
     expect(Math.min(...samples)).toBeCloseTo(FLICKER_MIN_ALPHA, 2);
     expect(Math.max(...samples)).toBeCloseTo(1, 2);
     for (const a of samples) {
@@ -106,17 +111,10 @@ describe('effectAlpha', () => {
     }
   });
 
-  it('holds a steady dim level under reduced motion', () => {
-    for (const ms of [1, 100, 250, EFFECT_FLICKER_MS - 1]) {
-      expect(effectAlpha(ms, true)).toBe(REDUCED_MOTION_ENDING_ALPHA);
-    }
-    expect(effectAlpha(1000, true)).toBe(1);
-  });
-
   it('hides an effect that has ended or has a bad remaining time', () => {
-    expect(effectAlpha(0, false)).toBe(0);
-    expect(effectAlpha(-5, false)).toBe(0);
-    expect(effectAlpha(Number.NaN, false)).toBe(0);
+    expect(effectAlpha(0)).toBe(0);
+    expect(effectAlpha(-5)).toBe(0);
+    expect(effectAlpha(Number.NaN)).toBe(0);
   });
 });
 
@@ -146,5 +144,45 @@ describe('camera fits', () => {
 
   it('holds the anchor for a non-finite height', () => {
     expect(chaseArena(358, 430, 600, Number.NaN, 0.5).offsetY).toBe(215);
+  });
+});
+
+describe('event effect geometry', () => {
+  it('spreads burst rays evenly between the two radii', () => {
+    const rays = burstRays(8, 10, 40);
+    expect(rays).toHaveLength(8);
+    for (const ray of rays) {
+      expect(Math.hypot(ray.from.x, ray.from.y)).toBeCloseTo(10, 9);
+      expect(Math.hypot(ray.to.x, ray.to.y)).toBeCloseTo(40, 9);
+    }
+    const angles = rays.map((r) => Math.atan2(r.to.y, r.to.x));
+    expect(Math.abs(angles[1]! - angles[0]!)).toBeCloseTo(Math.PI / 4, 9);
+  });
+
+  it('finds the wall a rocket touches on the outer and inner walls', () => {
+    // Top straight of the outer wall (y = 24): the rocket center sits 18 below it.
+    const top = wallContact({ x: 300, y: 42 });
+    expect(top.point.x).toBeCloseTo(300, 9);
+    expect(top.point.y).toBeCloseTo(24, 9);
+    expect(Math.abs(top.tangent.x)).toBeCloseTo(1, 9);
+    // Left straight of the inner wall (x = 180): the rocket center sits 18 left of it.
+    const inner = wallContact({ x: 162, y: 400 });
+    expect(inner.point.x).toBeCloseTo(180, 9);
+    expect(inner.point.y).toBeCloseTo(400, 9);
+    expect(Math.abs(inner.tangent.y)).toBeCloseTo(1, 9);
+  });
+
+  it('clamps effect progress to 0..1', () => {
+    expect(effectProgress(100, 50, 600)).toBe(0);
+    expect(effectProgress(100, 400, 600)).toBeCloseTo(0.5);
+    expect(effectProgress(100, 5000, 600)).toBe(1);
+    expect(effectProgress(100, 200, 0)).toBe(1);
+  });
+
+  it('pulses the next gate within its alpha range, once per period', () => {
+    const samples = Array.from({ length: GATE_PULSE_PERIOD_MS }, (_, ms) => gatePulseAlpha(ms));
+    expect(Math.max(...samples)).toBeCloseTo(GATE_PULSE_MAX_ALPHA, 6);
+    expect(Math.min(...samples)).toBeCloseTo(GATE_PULSE_MIN_ALPHA, 4);
+    expect(gatePulseAlpha(0)).toBeCloseTo(gatePulseAlpha(GATE_PULSE_PERIOD_MS), 9);
   });
 });

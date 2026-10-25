@@ -1,21 +1,27 @@
 // The single design-token source for DOM (as CSS custom properties) and the
 // canvas renderer, so the two can never drift apart (PRD 7.3, 7.11).
+//
+// M5 palette: the neutrals, walls, gates, accent, success, and warning follow
+// the HackPSU Fall 2026 site (indigo-black, steel blue, gold, cream). Team
+// colors, cores, shield, and danger keep their values, because team identity
+// and the grayscale and color-vision checks depend on them (PRD 7.3, 7.4).
 
 export const COLOR_TOKENS = {
-  '--bg-space': '#0B0E1A',
-  '--bg-surface': '#161B2E',
-  '--bg-track': '#141A30',
-  '--line-wall': '#6B76C2',
-  '--gate-idle': '#5A64A0',
+  '--bg-space': '#08091A',
+  '--bg-surface': '#1A1734',
+  '--bg-track': '#111022',
+  '--line-wall': '#64A5C3',
+  '--gate-idle': '#4F7FA0',
   '--gate-next': '#FFFFFF',
-  '--text-primary': '#F2F4FF',
-  '--text-secondary': '#A9B1D6',
+  '--text-primary': '#EEE5CD',
+  '--text-secondary': '#ADA6C4',
+  '--accent': '#E2C75E',
   '--team-comet': '#FF9F1C',
   '--team-nova': '#2EC4F1',
   '--core': '#E86BFF',
   '--shield': '#E6F7FF',
-  '--success': '#5BE38F',
-  '--warning': '#FFC857',
+  '--success': '#88D960',
+  '--warning': '#F5B90C',
   '--danger': '#FF5C6C',
 } as const;
 
@@ -80,6 +86,25 @@ export const EFFECT_FLICKER_MS = 500;
 export const HINT_DURATION_MS = 5000;
 export const HAPTIC_SHAKE_MS = 30;
 export const STAR_COUNT = 60;
+
+// M5 event feedback (PRD 7.8).
+// Match end: the frame holds with TIME! before Results.
+export const TIME_BANNER_MS = 500;
+export const HAPTIC_CORE_LOST_MS = 80;
+export const HAPTIC_WALL_MS = 50;
+export const WALL_FLICKER_MS = 200;
+// The next gate breathes once per second, like the final-seconds timer.
+export const GATE_PULSE_PERIOD_MS = 1000;
+// Spectator ticker: the newest lines stay on screen.
+export const TICKER_LINES = 3;
+// Phones play quiet UI sounds; the spectator display carries the room's audio.
+export const PHONE_SOUND_GAIN = 0.08;
+export const SPECTATOR_SOUND_GAIN = 0.25;
+// Frame budget (PRD 7.11): above about 45 fps average, keep everything; below
+// it, shed bursts and glow pulses first, and never interpolation.
+export const FRAME_BUDGET_MS = 22;
+export const FRAME_RECOVER_MS = 18;
+export const FRAME_AVERAGE_WEIGHT = 0.1;
 
 // Browser default root font size. Menu screens use rem so they follow the
 // player's text-size setting (PRD 7.5, 7.10).

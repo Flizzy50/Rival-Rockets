@@ -1,6 +1,7 @@
 import { ABILITY_COST, CHARGE_ENERGY, MAX_ENERGY } from '../../shared/config';
 import type { Ability, AbilityPhase } from '../../shared/rules/abilities';
 import { EFFECT_FLICKER_MS, FAIL_REASON_MS, HAPTIC_SHAKE_MS } from '../../shared/tokens';
+import { playSound } from '../audio';
 import { pulse } from '../haptics';
 import { el, replayClass, setText, setVar } from './dom';
 import { boostIcon, lockIcon, progressRing, shieldIcon } from './icons';
@@ -141,8 +142,11 @@ export function createEngineerPanel(onActivate: () => void, announce: (text: str
       activate.dataset.state = view.phase;
       setVar(activate, '--sweep', view.phase === 'cooldown' ? view.cooldownProgress : 0);
       activate.classList.toggle('is-ending', view.phase === 'active' && view.effectRemainingMs <= EFFECT_FLICKER_MS);
-      // A single pulse when the shared cooldown ends (PRD 7.8).
-      if (previousPhase === 'cooldown' && view.phase !== 'cooldown') replayClass(activate, 'refill');
+      // A single pulse and tick when the shared cooldown ends (PRD 7.8).
+      if (previousPhase === 'cooldown' && view.phase !== 'cooldown') {
+        replayClass(activate, 'refill');
+        playSound('ready');
+      }
       previousPhase = view.phase;
     },
     chargePop(energyAfter) {
@@ -150,9 +154,11 @@ export function createEngineerPanel(onActivate: () => void, announce: (text: str
       if (segment) replayClass(segment, 'pop');
       replayClass(chargeFloat, 'float');
       pulse(HAPTIC_SHAKE_MS);
+      playSound('charge');
     },
     selectionBump(ability) {
       replayClass(ability === 'boost' ? boost.tile : shield.tile, 'bump');
+      playSound('select');
     },
     pressed() {
       failReason.classList.remove('is-visible');
@@ -162,6 +168,7 @@ export function createEngineerPanel(onActivate: () => void, announce: (text: str
       failReason.textContent = text;
       failReason.classList.add('is-visible');
       replayClass(activate, 'nudge');
+      playSound('error');
       announce(text);
       clearTimeout(failTimer);
       failTimer = setTimeout(() => {

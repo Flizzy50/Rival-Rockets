@@ -51,6 +51,8 @@ export function resolvePickups(input: PickupInput) {
     if (c.createdTick < input.tick && input.nowMs < c.expiresAtMs) candidate('dropped', i, c, input.nowMs < c.ownerUnlockAtMs ? c.owner : null);
   });
   events.sort((a, b) => a.t - b.t || a.key.localeCompare(b.key));
+  // Where each pickup happened, in contact order, for presentation events only.
+  const collected: { team: TeamId; x: number; y: number }[] = [];
   for (const event of events) {
     if (settled.has(event.key) || carried[event.team] >= MAX_CARRIED_CORES) continue;
     const tied = events.some((e) => e.key === event.key && e.t === event.t && e.team !== event.team && carried[e.team] < MAX_CARRIED_CORES);
@@ -60,7 +62,13 @@ export function resolvePickups(input: PickupInput) {
     if (event.kind === 'course') {
       const core = course[event.index];
       if (core) course[event.index] = { ...core, respawnAtMs: input.nowMs + COURSE_CORE_RESPAWN_MS };
-    } else removed.add(event.index);
+      const p = core ? CORE_SPAWNS[core.spawn] : undefined;
+      if (p) collected.push({ team: event.team, x: p.x, y: p.y });
+    } else {
+      removed.add(event.index);
+      const c = input.dropped[event.index];
+      if (c) collected.push({ team: event.team, x: c.x, y: c.y });
+    }
   }
-  return { carried, course, dropped: input.dropped.filter((_, i) => !removed.has(i)) };
+  return { carried, course, dropped: input.dropped.filter((_, i) => !removed.has(i)), collected };
 }

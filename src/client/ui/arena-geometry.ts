@@ -1,4 +1,6 @@
-import { EFFECT_FLICKER_MS, EDGE_MARKER_INSET_PX } from '../../shared/tokens';
+import { INNER_WALL, OUTER_WALL, ROCKET_RADIUS } from '../../shared/config';
+import { gradient, signedDistance } from '../../shared/course';
+import { EFFECT_FLICKER_MS, EDGE_MARKER_INSET_PX, GATE_PULSE_PERIOD_MS } from '../../shared/tokens';
 
 // Pure drawing geometry for the arena canvas, in rocket-local pixels: the
 // nose points along +x and the rocket center is the origin. Kept apart from
@@ -63,11 +65,9 @@ export const SHIELD_RADIUS_RATIO = 0.75;
 const HEXAGON_SIDES = 6;
 
 // Effect flicker in the final EFFECT_FLICKER_MS (PRD 7.8). The low alpha
-// matches the Activate button's flicker; reduced motion holds a steady dim
-// level instead, like the button does.
+// matches the Activate button's flicker.
 export const FLICKER_MIN_ALPHA = 0.5;
 export const FLICKER_CYCLES = 4;
-export const REDUCED_MOTION_ENDING_ALPHA = 0.7;
 
 export function arrowheadPoints(lengthPx: number): readonly Point[] {
   const half = lengthPx / 2;
@@ -163,11 +163,10 @@ export function boundsOf(points: readonly Point[]): Box {
 
 // Opacity of an active effect. Without a remaining time the effect is shown
 // in full; it stays visible (never fully hidden) until the server clears it.
-export function effectAlpha(remainingMs: number | undefined, reducedMotion: boolean): number {
+export function effectAlpha(remainingMs: number | undefined): number {
   if (remainingMs === undefined) return 1;
   if (!(remainingMs > 0)) return 0;
   if (remainingMs >= EFFECT_FLICKER_MS) return 1;
-  if (reducedMotion) return REDUCED_MOTION_ENDING_ALPHA;
   // Triangle wave from 1 down to FLICKER_MIN_ALPHA and back, starting at 1
   // when the final window opens. Driven by the remaining time, not a clock.
   const period = EFFECT_FLICKER_MS / FLICKER_CYCLES;
@@ -185,7 +184,7 @@ export interface ViewFit {
 }
 
 // Fixed view: the whole arena, letterboxed and never cropped. Used by the
-// Watch view, the sensor test, and the chase camera under reduced motion.
+// Watch and spectator views, practice, and the sensor test.
 export function fitArena(boxW: number, boxH: number, arenaW: number, arenaH: number): ViewFit {
   const scale = Math.min(boxW / arenaW, boxH / arenaH);
   return { scale, offsetX: (boxW - arenaW * scale) / 2, offsetY: (boxH - arenaH * scale) / 2 };
@@ -198,4 +197,46 @@ export function chaseArena(boxW: number, boxH: number, arenaW: number, focusY: n
   const scale = boxW / arenaW;
   const y = Number.isFinite(focusY) ? focusY : 0;
   return { scale, offsetX: 0, offsetY: boxH * anchor - y * scale };
+}
+
+// ---------------------------------------------------------------------------
+// M5 event effects (PRD 7.8), in world units around an event point.
+
+// Evenly spaced rays from inner to outer radius, offset by half a step so a
+// four-ray spark reads as an "x" rather than a plus.
+export function burstRays(count: number, inner: number, outer: number): readonly Segment[] {
+  const rays: Segment[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const a = ((i + 0.5) * 2 * Math.PI) / count;
+    rays.push({ from: { x: Math.cos(a) * inner, y: Math.sin(a) * inner }, to: { x: Math.cos(a) * outer, y: Math.sin(a) * outer } });
+  }
+  return rays;
+}
+
+// Where a rocket centered at p touches the nearer wall, and that wall's
+// tangent, so a wall hit can flash the wall line itself.
+export function wallContact(p: Point): { point: Point; tangent: Point } {
+  const outer = -signedDistance(OUTER_WALL, p);
+  const inner = signedDistance(INNER_WALL, p);
+  if (outer <= inner) {
+    const n = gradient(OUTER_WALL, p);
+    return { point: { x: p.x + n.x * ROCKET_RADIUS, y: p.y + n.y * ROCKET_RADIUS }, tangent: { x: -n.y, y: n.x } };
+  }
+  const n = gradient(INNER_WALL, p);
+  return { point: { x: p.x - n.x * ROCKET_RADIUS, y: p.y - n.y * ROCKET_RADIUS }, tangent: { x: -n.y, y: n.x } };
+}
+
+// 0..1 progress of a one-shot effect; 1 once it is over.
+export function effectProgress(startMs: number, nowMs: number, durationMs: number): number {
+  if (!(durationMs > 0)) return 1;
+  return Math.min(1, Math.max(0, (nowMs - startMs) / durationMs));
+}
+
+// The next gate's halo breathes between these alphas once per period.
+export const GATE_PULSE_MIN_ALPHA = 0.15;
+export const GATE_PULSE_MAX_ALPHA = 0.45;
+export function gatePulseAlpha(nowMs: number): number {
+  const phase = (((nowMs % GATE_PULSE_PERIOD_MS) + GATE_PULSE_PERIOD_MS) % GATE_PULSE_PERIOD_MS) / GATE_PULSE_PERIOD_MS;
+  const wave = 0.5 + 0.5 * Math.cos(phase * 2 * Math.PI);
+  return GATE_PULSE_MIN_ALPHA + (GATE_PULSE_MAX_ALPHA - GATE_PULSE_MIN_ALPHA) * wave;
 }

@@ -1,3 +1,4 @@
+import { SWAP_HINT } from '../../shared/copy';
 import type { RejectReason, RoomErrorReason, SeatId } from '../../shared/protocol';
 
 // M2 player copy (PRD 7.9 "Rooms and control test (Milestone 2)"). Errors say
@@ -108,7 +109,7 @@ export const M4_COPY = {
   cancelSwap: 'Cancel swap',
   waitingTeammate: 'Waiting for teammate',
   wantsSwap: 'Wants to swap',
-  swapHint: 'Both teammates tap Swap roles. Check motion and set neutral before Ready. The host starts the next match when all four are ready.',
+  swapHint: SWAP_HINT,
   waitingHost: 'Waiting for the host to start a rematch',
   holdLabel: 'Seat held',
 } as const;

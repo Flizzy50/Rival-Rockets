@@ -1,5 +1,5 @@
 import { PRACTICE_RINGS, PRACTICE_START_ENERGY } from '../../shared/config';
-import { engineerTutorial, pilotTutorial } from '../../shared/copy';
+import { engineerTutorialSteps, pilotTutorialSteps } from '../../shared/copy';
 import { createCrewAbilityState } from '../../shared/rules/abilities';
 import type { AppContext } from '../app';
 import { createMotionController } from '../motion/controller';
@@ -18,7 +18,8 @@ export function mountPracticeScreen(root: HTMLElement, ctx: AppContext): () => v
   local.setNeutral(ctx.neutralDeg ?? 0);
   const off = ctx.addSensorListener({ onOrientation: (s) => { local.setBlocked(ctx.blocked); local.handleOrientation(s, ctx.settings); }, onMotion: (s) => { local.setBlocked(ctx.blocked); local.handleMotion(s, ctx.settings); } });
   if (!ctx.sensorsActive) ctx.startSensors();
-  let pilot = createPilotPractice(seatTeam(seat));
+  const team = seatTeam(seat);
+  let pilot = createPilotPractice(team);
   let engineer: EngineerPractice = { charges: 0, step: 'charge', firstSuccess: false };
   let complete = false;
   function finish(): void { ctx.practiced.add(seat!); ctx.resetController(); ctx.go('lobby'); }
@@ -29,9 +30,11 @@ export function mountPracticeScreen(root: HTMLElement, ctx: AppContext): () => v
   done.hidden = true;
   const arena = el('div', { className: 'practice-arena' });
   const panel = ctx.role === 'engineer' ? createEngineerPanel(() => { local.setBlocked(ctx.blocked); local.activate(performance.now()); render(performance.now()); }, (text) => ctx.announce('assertive', text)) : null;
-  root.append(el('main', { className: 'screen menu-screen practice-screen' },
+  root.append(el('main', { className: `screen menu-screen practice-screen team-${team}` },
     el('h1', { className: 'screen-title', text: 'PRACTICE', attrs: { tabindex: '-1' } }),
-    el('p', { className: 'body-text', text: ctx.role === 'pilot' ? pilotTutorial() : engineerTutorial() }),
+    // The PRD 4 tutorial as short steps, one idea per line (M5).
+    el('ol', { className: 'tutorial-steps body-text', attrs: { 'aria-label': ctx.role === 'pilot' ? 'Pilot tutorial' : 'Engineer tutorial' } },
+      ...(ctx.role === 'pilot' ? pilotTutorialSteps() : engineerTutorialSteps()).map((step) => el('li', { text: step }))),
     progress, panel?.element ?? arena, el('div', { className: 'button-row' }, skip, done)));
   const canvas = panel ? null : createArenaCanvas(arena);
   const releaseWakeLock = holdWakeLock();
@@ -54,7 +57,7 @@ export function mountPracticeScreen(root: HTMLElement, ctx: AppContext): () => v
       complete = engineer.step === 'done';
     } else {
       if (!ctx.blocked && !complete) pilot = stepPilotPractice(pilot, snap.steering, now, now - previous);
-      canvas?.drawPractice(pilot.rocket.pose, pilot.ringsDone);
+      canvas?.drawPractice(pilot.rocket.pose, pilot.ringsDone, team);
       setText(progress, `Rings: ${pilot.ringsDone} / ${PRACTICE_RINGS.length}`);
       complete = pilot.ringsDone === PRACTICE_RINGS.length;
     }

@@ -232,6 +232,17 @@ export interface PublicScoreBreakdown { readonly crossings: number; readonly che
 export interface PublicMatchResult { readonly matchId: number; readonly outcome: 'win' | 'draw'; readonly winner: TeamId | null; readonly teams: Readonly<Record<TeamId, PublicScoreBreakdown>> }
 export interface PublicMatchCrew extends PublicCrewState { readonly crossings: number; readonly nextGate: number; readonly carried: number; readonly score: number }
 export interface PublicDroppedCore { readonly id: number; readonly x: number; readonly y: number; readonly owner: TeamId; readonly lockRemainingMs: number; readonly lifeRemainingMs: number }
+// M5 presentation events (PRD 7.8): what happened in the steps since the
+// previous snapshot, so every screen shows the same bursts, flashes, and
+// ticker lines. Cosmetic only: scores and core ownership still come from the
+// snapshot fields. matchMs is the step's match time; x and y are world units.
+export type PublicMatchEvent =
+  | { readonly kind: 'gate'; readonly matchMs: number; readonly team: TeamId; readonly gate: number }
+  | { readonly kind: 'pickup'; readonly matchMs: number; readonly team: TeamId; readonly x: number; readonly y: number }
+  | { readonly kind: 'drop' | 'blocked'; readonly matchMs: number; readonly attacker: TeamId; readonly victim: TeamId; readonly x: number; readonly y: number }
+  | { readonly kind: 'bump'; readonly matchMs: number; readonly x: number; readonly y: number }
+  | { readonly kind: 'wall'; readonly matchMs: number; readonly team: TeamId; readonly x: number; readonly y: number };
+export type MatchEventKind = PublicMatchEvent['kind'];
 export interface MatchSnapshotMessage {
   readonly type: 'match.state'; readonly mode: 'match'; readonly matchId: number;
   readonly phase: 'countdown' | 'running' | 'complete'; readonly tick: number; readonly matchMs: number;
@@ -242,6 +253,7 @@ export interface MatchSnapshotMessage {
   readonly crews: Readonly<Record<TeamId, PublicMatchCrew>>;
   readonly courseCores: readonly { readonly available: boolean }[];
   readonly droppedCores: readonly PublicDroppedCore[];
+  readonly events: readonly PublicMatchEvent[];
 }
 export type MatchStateMessage = ControlTestStateMessage | MatchSnapshotMessage;
 

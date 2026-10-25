@@ -11,7 +11,8 @@ import {
 import { isPortrait, shouldShowRotateOverlay } from './motion/orientation';
 import { clearSession, loadSession, parseRoomParam } from './net/session';
 import type { RequestReply } from './net/socket';
-import { createRoomContext, seatRole, type RoomContext } from './room-context';
+import { createRoomContext, seatRole, seatTeam, type RoomContext } from './room-context';
+import { TIME_BANNER_MS } from '../shared/tokens';
 import { detectCapabilities, subscribeSensors, type Capabilities } from './sensors';
 import { ROOM_COPY } from './ui/copy';
 import { mountControlScreen } from './ui/control-screen';
@@ -125,6 +126,8 @@ const LOCKED_SCREENS: ReadonlySet<ScreenName> = new Set(['pilot', 'engineer', 'c
 const MOTION_SCREENS: ReadonlySet<ScreenName> = new Set(['setup', 'pilot', 'engineer', 'control', 'practice', 'match', 'lobby']);
 // Screens that need a seat; losing it sends the player back to the lobby.
 const SEATED_SCREENS: ReadonlySet<ScreenName> = new Set(['setup', 'control', 'practice', 'match']);
+// The M1 sensor test, which has no room or seat.
+const SENSOR_TEST_SCREENS: ReadonlySet<ScreenName> = new Set(['start', 'setup', 'pilot', 'engineer']);
 
 export interface LiveRegions {
   readonly polite: HTMLElement;
@@ -148,6 +151,22 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
   let current: ScreenName = 'home';
   let room: RoomContext | null = null;
   let offRoom: (() => void) | null = null;
+
+  let resultsTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Match end (PRD 7.8): the arena holds with TIME! for a moment before
+  // Results. The result is already final on the server; only the screen
+  // change waits, and any other navigation cancels the wait.
+  function navigate(target: ScreenName): void {
+    if (target === 'results' && (current === 'match' || current === 'room-watch')) {
+      resultsTimer ??= setTimeout(() => {
+        resultsTimer = null;
+        if (room?.roomState?.phase === 'results' && current !== 'results') ctx.go('results');
+      }, TIME_BANNER_MS);
+      return;
+    }
+    ctx.go(target);
+  }
 
   function closeRoom(): void {
     offRoom?.();
@@ -189,7 +208,7 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
           const own = next.roomState.seats.find((s) => s.seat === next.seat);
           if (seated && own?.setup === 'unverified' && current === 'match' && next.seat) { ctx.startSeat(next.seat); return; }
           const target = screenForPhase(next.roomState.phase, seated, current, next.roomState.returnReason);
-          if (target) ctx.go(target);
+          if (target) navigate(target);
         }
       }
     });
@@ -304,10 +323,20 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
       });
     },
     go(name) {
+      if (resultsTimer !== null) {
+        clearTimeout(resultsTimer);
+        resultsTimer = null;
+      }
       cleanup?.();
       cleanup = null;
       screenRoot.replaceChildren();
       current = name;
+      // Role controls take the player's team color (PRD 7.3: energy meters
+      // fill in team color). The M1 sensor test flies Comet.
+      const seat = room?.seat ?? null;
+      const team = seat !== null ? seatTeam(seat) : SENSOR_TEST_SCREENS.has(name) ? 'comet' : null;
+      if (team) screenRoot.dataset.team = team;
+      else delete screenRoot.dataset.team;
       if (name === 'match' || name === 'control') ctx.resetController();
       if (!MOTION_SCREENS.has(name)) ctx.stopSensors();
       // Page-level overscroll is locked only on fixed match-style screens, so
@@ -315,6 +344,8 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
       document.documentElement.classList.toggle('in-test', LOCKED_SCREENS.has(name));
       cleanup = SCREENS[name](screenRoot, ctx);
       screenRoot.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
+      // Leaving or entering the watch view can change whether the overlay applies.
+      updateOrientation();
     },
   };
 
@@ -324,7 +355,8 @@ export function startApp(appRoot: HTMLElement, live: LiveRegions): void {
       width: window.innerWidth,
       height: window.innerHeight,
     });
-    const show = shouldShowRotateOverlay(portrait, coarseQuery.matches);
+    // Watching sends no input, and the spectator layout is landscape (PRD 7.7).
+    const show = shouldShowRotateOverlay(portrait, coarseQuery.matches) && current !== 'room-watch';
     if (show === blocked) return;
     blocked = show;
     // Neutral steering and frozen selection while rotated (PRD 7.6).

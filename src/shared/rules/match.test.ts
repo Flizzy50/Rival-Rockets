@@ -55,6 +55,44 @@ describe('authoritative match step', () => {
     expect(out.crews.nova.crossings).toBe(1);
     expect(out.crews.comet.crossings).toBe(0);
   });
+  it('reports a bump and both drops at the projected impact point', () => {
+    const out = stepMatch(colliding(), [{ kind: 'activate', team: 'comet', seq: 1 }, { kind: 'activate', team: 'nova', seq: 1 }]);
+    expect(out.events.filter((e) => e.kind === 'bump')).toHaveLength(1);
+    const drops = out.events.flatMap((e) => (e.kind === 'drop' ? [e] : []));
+    expect(drops.map((e) => e.victim).sort()).toEqual(['comet', 'nova']);
+    for (const drop of drops) expect(out.state.dropped.some((c) => c.x === drop.x && c.y === drop.y && c.owner === drop.victim)).toBe(true);
+    expect(out.events.some((e) => e.kind === 'blocked')).toBe(false);
+  });
+  it('reports a Shield block instead of a drop', () => {
+    const out = stepMatch(colliding(), [{ kind: 'activate', team: 'comet', seq: 1 }, { kind: 'select', team: 'nova', seq: 1, ability: 'shield' }, { kind: 'activate', team: 'nova', seq: 2 }]);
+    expect(out.events.filter((e) => e.kind === 'blocked')).toEqual([expect.objectContaining({ attacker: 'comet', victim: 'nova' })]);
+    expect(out.events.some((e) => e.kind === 'drop')).toBe(false);
+  });
+  it('reports no bump event while an existing contact continues', () => {
+    expect(stepMatch({ ...colliding(), inContact: true }, []).events.some((e) => e.kind === 'bump')).toBe(false);
+  });
+  it('reports the gate a forward bump scores', () => {
+    const s = colliding();
+    const state = { ...s, crews: { comet: { ...s.crews.comet, rocket: { ...s.crews.comet.rocket, pose: { x: 280, y: 100, heading: 0 } } }, nova: { ...s.crews.nova, rocket: { ...s.crews.nova.rocket, pose: { x: 290, y: 100, heading: 0 } } } } };
+    expect(stepMatch(state, []).events.filter((e) => e.kind === 'gate')).toEqual([{ kind: 'gate', matchMs: 0, team: 'nova', gate: 0 }]);
+  });
+  it('reports a wall hit once per slide, not every step against the wall', () => {
+    const s = createMatch(1);
+    let state: MatchState = { ...s, crews: { ...s.crews, comet: { ...s.crews.comet, rocket: { ...s.crews.comet.rocket, pose: { x: 300, y: 44, heading: -Math.PI / 2 } } } } };
+    const first = stepMatch(state, [{ kind: 'steer', team: 'comet', seq: 1, steering: -1 }]);
+    expect(first.events.filter((e) => e.kind === 'wall')).toEqual([expect.objectContaining({ team: 'comet' })]);
+    state = first.state;
+    for (let i = 0; i < 5; i += 1) {
+      const out = stepMatch(state, [{ kind: 'steer', team: 'comet', seq: i + 2, steering: -1 }]);
+      expect(out.events.some((e) => e.kind === 'wall')).toBe(false);
+      state = out.state;
+    }
+  });
+  it('reports a pickup at the core position', () => {
+    const s = createMatch(1);
+    const state = { ...s, crews: { ...s.crews, comet: { ...s.crews.comet, rocket: { ...s.crews.comet.rocket, pose: { x: 410, y: 106, heading: 0 } } } } };
+    expect(stepMatch(state, []).events.filter((e) => e.kind === 'pickup')).toEqual([{ kind: 'pickup', matchMs: 0, team: 'comet', x: 420, y: 106 }]);
+  });
   it('ends at exactly 90 seconds with a frozen result and rejects every later input', () => {
     const tick = MATCH_DURATION_MS / 1000 * SIMULATION_HZ - 1;
     const initial = { ...createMatch(8), tick, matchMs: matchMsAt(tick) };
@@ -65,6 +103,23 @@ describe('authoritative match step', () => {
     const after = stepMatch(final, [{ kind: 'charge', team: 'comet', seq: 1 }]);
     expect(after.state).toBe(final);
     expect(after.results[0]).toMatchObject({ status: 'rejected', reason: 'not-running' });
+  });
+  it('reports one gate event per scored crossing and one pickup event per collected core', () => {
+    fc.assert(fc.property(fc.array(fc.tuple(fc.double({ min: -1, max: 1, noNaN: true }), fc.double({ min: -1, max: 1, noNaN: true })), { minLength: 20, maxLength: 120 }), (steers) => {
+      let state = createMatch(1);
+      for (const [comet, nova] of steers) {
+        const out = stepMatch(state, [{ team: 'comet', kind: 'steer', seq: 1, steering: comet }, { team: 'nova', kind: 'steer', seq: 1, steering: nova }]);
+        for (const team of ['comet', 'nova'] as const) {
+          const gates = out.events.filter((e) => e.kind === 'gate' && e.team === team).length;
+          expect(gates).toBe(out.state.crews[team].crossings - state.crews[team].crossings);
+          const lost = out.events.filter((e) => e.kind === 'drop' && e.victim === team).length;
+          const picked = out.events.filter((e) => e.kind === 'pickup' && e.team === team).length;
+          expect(out.state.crews[team].carried).toBe(state.crews[team].carried - lost + picked);
+        }
+        expect(out.events.every((e) => e.matchMs === state.matchMs)).toBe(true);
+        state = out.state;
+      }
+    }), { numRuns: 100 });
   });
   it('keeps random trajectories finite, on-course, with monotonic gate points and bounded inventory', () => {
     fc.assert(fc.property(fc.array(fc.tuple(fc.double({ min: -1, max: 1, noNaN: true }), fc.double({ min: -1, max: 1, noNaN: true })), { minLength: 20, maxLength: 120 }), (steers) => {

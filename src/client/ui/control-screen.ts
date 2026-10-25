@@ -20,6 +20,7 @@ import { controlTestStatus } from './lobby-screen';
 import { createPilotPanel } from './pilot-panel';
 import { createTestTopBar } from './top-bar';
 import { createHud } from './hud';
+import { createMatchFeedback } from './match-feedback';
 
 // Control screen (Requirements 17.9, 19, 20): the Comet Pilot and Engineer
 // fly one server-owned rocket. Local feedback lands on the same frame; the
@@ -74,7 +75,10 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
   const strip = el('p', { className: 'control-strip', text: ROOM_COPY.controlTestLabel });
   const waiting = el('p', { className: 'arena-message', attrs: { 'aria-live': 'polite' } });
   const lobbyButton = button('Lobby', 'btn btn-small', () => ctx.go('lobby'));
-  const hud = createHud(team);
+  const hud = createHud(team, { mute: true });
+  // Match end (PRD 7.8): the frame holds with TIME! before Results.
+  const timeBanner = el('div', { className: 'time-banner', text: 'TIME!', attrs: { role: 'status' } });
+  timeBanner.hidden = true;
   const countdown = el('div', { className: 'countdown-overlay', attrs: { 'aria-live': 'polite' } });
   const numeral = el('strong', { className: 'countdown-numeral' });
   countdown.append(numeral, el('p', { text: role === 'pilot' ? 'Tilt to steer' : 'Shake to charge' }));
@@ -96,10 +100,10 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
   root.append(
     el(
       'main',
-      { className: `screen test-screen control-screen role-${role}${isMatch ? ' match-screen' : ''}` },
+      { className: `screen test-screen control-screen team-${team} role-${role}${isMatch ? ' match-screen' : ''}` },
       isMatch ? hud.element : createTestTopBar(ctx, role === 'pilot' ? 'Pilot' : 'Engineer', debug.toggle, team, lobbyButton),
       strip,
-      el('div', { className: 'middle' }, arena, waiting, pause, debug.panel, ...(isMatch ? [el('div', { className: 'match-debug' }, debug.toggle)] : [])),
+      el('div', { className: 'middle' }, arena, waiting, pause, timeBanner, debug.panel, ...(isMatch ? [el('div', { className: 'match-debug' }, debug.toggle)] : [])),
       panel,
       countdown,
     ),
@@ -107,6 +111,7 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
 
   // The crew's own rocket holds its height while the course scrolls (PRD 7.6).
   const canvas = createArenaCanvas(arena, { camera: 'chase' });
+  const feedback = isMatch ? createMatchFeedback(room, { team, role }, { canvas, hud, onTime: () => { timeBanner.hidden = false; } }) : null;
   const releaseWakeLock = holdWakeLock();
   if (!ctx.sensorsActive) ctx.startSensors();
   if (isMatch) waiting.setAttribute('aria-live', 'assertive');
@@ -190,8 +195,9 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
     const snapshot = room.matchState;
     const running = room.roomState?.activeMatchId != null && pose !== null;
     if (snapshot?.mode === 'match') {
-      canvas.drawMatch(snapshot, { comet: sampleAt(room.buffer, renderSessionMs, 'comet') ?? snapshot.rockets.comet, nova: sampleAt(room.buffer, renderSessionMs, 'nova') ?? snapshot.rockets.nova }, team);
       hud.update(snapshot);
+      feedback?.frame(renderSessionMs, nowMs);
+      canvas.drawMatch(snapshot, { comet: sampleAt(room.buffer, renderSessionMs, 'comet') ?? snapshot.rockets.comet, nova: sampleAt(room.buffer, renderSessionMs, 'nova') ?? snapshot.rockets.nova }, team, nowMs);
       room.recordRender(renderSessionMs, nowMs);
       const counting = snapshot.phase === 'countdown';
       const go = snapshot.phase === 'running' && snapshot.matchMs < COUNTDOWN_NUMERAL_MS && !snapshot.frozen;
@@ -240,6 +246,8 @@ export function mountControlScreen(root: HTMLElement, ctx: AppContext): () => vo
   return () => {
     cancelAnimationFrame(rafId);
     offRoom();
+    feedback?.destroy();
+    hud.destroy();
     pilot?.destroy();
     engineer?.destroy();
     canvas.destroy();

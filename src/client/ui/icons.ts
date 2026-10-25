@@ -94,6 +94,47 @@ export function shieldIcon(): SVGSVGElement {
   return svg('icon-shield', shape('path', { ...STROKED, d: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z' }));
 }
 
+// Home hero (M5, PRD 7.2): both rockets racing for a gate, drawn in code
+// from the same silhouettes and trail patterns as the arena.
+const HERO_ROCKET_LENGTH = 40;
+const HERO_TRAIL_MARKS = 4;
+const HERO_TRAIL_SPACING = 12;
+const HERO_STARS = [[18, 20], [52, 96], [96, 14], [170, 104], [232, 22], [262, 88], [140, 64]] as const;
+
+export function heroArt(): SVGSVGElement {
+  const root = document.createElementNS(SVG_NS, 'svg');
+  root.setAttribute('viewBox', '0 0 280 120');
+  root.setAttribute('aria-hidden', 'true');
+  root.setAttribute('focusable', 'false');
+  root.setAttribute('class', 'hero-art');
+  for (const [cx, cy] of HERO_STARS) root.append(shape('circle', { class: 'hero-star', cx: String(cx), cy: String(cy), r: '1.2' }));
+  root.append(shape('line', { class: 'hero-gate', x1: '226', y1: '10', x2: '226', y2: '110' }));
+  const len = HERO_ROCKET_LENGTH;
+  const comet = shape('g', { class: 'hero-comet', transform: 'translate(176 40)' });
+  for (let i = 0; i < HERO_TRAIL_MARKS; i += 1) {
+    const tip = -len / 2 - HERO_TRAIL_SPACING * i;
+    comet.append(shape('polyline', { points: `${tip - 6},-7 ${tip},0 ${tip - 6},7`, fill: 'none', stroke: 'currentColor', 'stroke-width': '2', opacity: String(1 - i * 0.2) }));
+  }
+  comet.append(shape('polygon', { points: arrowheadPoints(len).map((p) => `${p.x},${p.y}`).join(' '), fill: 'currentColor' }));
+  const nova = shape('g', { class: 'hero-nova', transform: 'translate(150 82)' });
+  const height = len * NOVA_BODY_HEIGHT;
+  for (let i = 0; i < HERO_TRAIL_MARKS; i += 1) {
+    nova.append(shape('circle', { cx: String(-len / 2 - HERO_TRAIL_SPACING * i - 4), cy: '0', r: '2.2', fill: 'currentColor', opacity: String(1 - i * 0.2) }));
+  }
+  nova.append(shape('rect', { x: String(-len / 2), y: String(-height / 2), width: String(len), height: String(height), rx: String(height / 2), fill: 'currentColor' }));
+  for (const sign of [-1, 1]) nova.append(shape('polygon', { points: `${-len / 2},0 ${-len / 2},${sign * len * NOVA_FIN_SPAN / 2} ${-len / 2 + len * NOVA_FIN_LENGTH},${sign * height / 2}`, fill: 'currentColor' }));
+  root.append(nova, comet);
+  return root;
+}
+
+// Sound toggle: a speaker with waves, or crossed out when muted.
+export function soundIcon(on: boolean): SVGSVGElement {
+  const speaker = shape('path', { ...FILLED, d: 'M4 9h4l5-4v14l-5-4H4z' });
+  return on
+    ? svg('icon-sound', speaker, shape('path', { ...STROKED, d: 'M16 9a4 4 0 0 1 0 6' }), shape('path', { ...STROKED, d: 'M18.5 6.5a7.5 7.5 0 0 1 0 11' }))
+    : svg('icon-sound', speaker, shape('path', { ...STROKED, d: 'M16 9l5 6M21 9l-5 6' }));
+}
+
 // Progress ring. pathLength=1 lets CSS drive the fill with a 0..1 custom
 // property instead of computing the circumference.
 export function progressRing(className: string): SVGSVGElement {
