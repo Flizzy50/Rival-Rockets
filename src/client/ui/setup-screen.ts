@@ -6,6 +6,7 @@ import { pulse } from '../haptics';
 import { requestMotionPermission } from '../sensors';
 import { holdWakeLock } from '../wake-lock';
 import { button, el, replayClass, setText, setVar } from './dom';
+import { seatName } from './copy';
 import { checkIcon, progressRing } from './icons';
 
 // Motion setup (PRD 6, 7.7; AC3): Enable -> Check -> Calibrate. Setup only
@@ -40,6 +41,27 @@ function stepIndex(phase: Phase): number {
 
 export function mountSetupScreen(root: HTMLElement, ctx: AppContext): () => void {
   const role = ctx.role;
+  // Seated in a room: report progress to the server and fly next (Requirement 18).
+  const room = ctx.room?.seat ? ctx.room : null;
+  const seat = room?.seat ?? null;
+
+  // Only progress is ever reported; denial and missing data leave the seat
+  // unverified on the server (Requirement 18.4).
+  function report(status: 'readings' | 'calibrated'): void {
+    room?.request({ type: 'setup.update', status }).catch(() => undefined);
+  }
+
+  function watchInstead(): void {
+    if (!room) {
+      ctx.go('watch');
+      return;
+    }
+    // Requirement 18.5: give up the seat and watch.
+    room.request({ type: 'room.watch' }).then(
+      () => ctx.go('room-watch'),
+      () => ctx.go('lobby'),
+    );
+  }
   const recalibrating = ctx.setupEntry === 'calibrate' && ctx.sensorsActive;
   let phase: Phase = 'enable';
   let disposed = false;
@@ -116,7 +138,7 @@ export function mountSetupScreen(root: HTMLElement, ctx: AppContext): () => void
       'div',
       { className: 'button-row' },
       tryAgainButton,
-      button('Watch instead', 'btn btn-secondary', () => ctx.go('watch')),
+      button('Watch instead', 'btn btn-secondary', watchInstead),
     ),
   );
 
@@ -134,7 +156,10 @@ export function mountSetupScreen(root: HTMLElement, ctx: AppContext): () => void
       'main',
       { className: 'screen menu-screen setup-screen' },
       el('h1', { className: 'screen-title', text: 'Motion setup', attrs: { tabindex: '-1' } }),
-      el('p', { className: 'caption', text: role === 'pilot' ? 'Pilot test' : 'Engineer test' }),
+      el('p', {
+        className: 'caption',
+        text: seat !== null ? seatName(seat) : role === 'pilot' ? 'Pilot test' : 'Engineer test',
+      }),
       stepList,
       enablePanel,
       checkPanel,
@@ -205,7 +230,8 @@ export function mountSetupScreen(root: HTMLElement, ctx: AppContext): () => void
     setText(calibrationStatus, COPY.neutralSet);
     ctx.announce('polite', COPY.neutralSet);
     // Leaves the filled ring and "Neutral set" visible for one event burst.
-    navTimer = setTimeout(() => ctx.go(role), EVENT_BURST_MAX_MS);
+    report('calibrated');
+    navTimer = setTimeout(() => ctx.go(room ? 'control' : role), EVENT_BURST_MAX_MS);
   }
 
   const removeListener = ctx.addSensorListener({
@@ -250,6 +276,7 @@ export function mountSetupScreen(root: HTMLElement, ctx: AppContext): () => void
       pulse(HAPTIC_SHAKE_MS);
     }
     if (snap.checks.passed) {
+      report('readings');
       ctx.announce('polite', COPY.motionWorking);
       setPhase('calibrate');
     }

@@ -171,12 +171,22 @@ export interface SessionAccepted {
   readonly token: string | null;
 }
 
+// Reply to leave, release, watch, and setup requests, which change no private
+// data. Create, join, claim, and reconnect answer with session.accepted.
+export interface RequestAccepted {
+  readonly type: 'request.accepted';
+  readonly requestId: number;
+}
+
 export interface RoomStateMessage {
   readonly type: 'room.state';
   readonly code: string;
   // Null while no seated play participant can take the host role (Requirement 4.9).
   readonly hostId: string | null;
   readonly controlTestEnabled: boolean;
+  // Running control test, or null. Lets every screen tell "waiting" from
+  // "ended" without waiting for a snapshot that will never come.
+  readonly activeMatchId: number | null;
   readonly participants: readonly PublicParticipant[];
   readonly seats: readonly PublicSeat[];
 }
@@ -249,6 +259,7 @@ export interface HeartbeatAck {
 
 export type ServerMessage =
   | SessionAccepted
+  | RequestAccepted
   | RoomStateMessage
   | MatchStateMessage
   | InputAck

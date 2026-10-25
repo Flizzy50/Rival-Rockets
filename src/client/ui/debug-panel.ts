@@ -1,6 +1,7 @@
-import { DEBUG_RANGES, EVENT_RATE_WINDOW_MS } from '../../shared/config';
+import { DEBUG_RANGES, EVENT_RATE_WINDOW_MS, LATENCY_TARGET_P95_MS } from '../../shared/config';
 import type { AppContext } from '../app';
 import type { MotionSettings, MotionSnapshot } from '../motion/controller';
+import type { LatencyStats, LatencySummary } from '../net/latency';
 import { button, el, setText } from './dom';
 
 // Developer-only panel for tuning on real phones (labels are exempt from the
@@ -39,6 +40,18 @@ function yesNo(value: boolean): string {
 function rateHz(times: number[], nowMs: number): number {
   while (times.length > 0 && (times[0] ?? nowMs) < nowMs - EVENT_RATE_WINDOW_MS) times.shift();
   return (times.length * MS_PER_S) / EVENT_RATE_WINDOW_MS;
+}
+
+const LATENCY_ROWS: readonly { key: keyof LatencySummary; label: string }[] = [
+  { key: 'steer', label: 'Steer send→ack' },
+  { key: 'charge', label: 'Charge send→ack' },
+  { key: 'ability', label: 'Ability send→ack' },
+  { key: 'render', label: 'Render delay' },
+];
+
+function statsText(s: LatencyStats): string {
+  if (s.count === 0) return 'no samples';
+  return `n ${s.count}, median ${fixed(s.medianMs, 0)} ms, p95 ${fixed(s.p95Ms, 0)} ms, max ${fixed(s.maxMs, 0)} ms`;
 }
 
 function formatSetting(settings: MotionSettings, key: TuningKey, unit: string): string {
@@ -114,6 +127,12 @@ export function createDebugPanel(ctx: AppContext): DebugPanel {
     );
   });
 
+  // M2 latency (Requirement 22.3, 22.4): numbers only, against the PRD target.
+  const latency = ctx.room?.latency ?? null;
+  const latencyRows = latency
+    ? LATENCY_ROWS.map(({ key, label }) => ({ key, value: row(label) }))
+    : [];
+
   const copyStatus = el('p', { className: 'debug-copy-status', attrs: { role: 'status' } });
   const fallback = el('textarea', { className: 'debug-copy-fallback', attrs: { readonly: '', rows: '8' } });
   fallback.hidden = true;
@@ -134,6 +153,12 @@ export function createDebugPanel(ctx: AppContext): DebugPanel {
         caps.wakeLock,
       )}`,
       `User agent: ${navigator.userAgent}`,
+      ...(latency
+        ? [
+            `Latency target: p95 ≤ ${LATENCY_TARGET_P95_MS} ms (to measure, not a result)`,
+            ...LATENCY_ROWS.map(({ key, label }) => `${label}: ${statsText(latency.summary()[key])}`),
+          ]
+        : []),
     ].join('\n');
   }
 
@@ -196,6 +221,10 @@ export function createDebugPanel(ctx: AppContext): DebugPanel {
       setText(orientationRate, `${orientationHz.toFixed(0)} Hz`);
       setText(motionRate, `${motionHz.toFixed(0)} Hz`);
       setText(orientationType, ctx.orientationType());
+      if (latency) {
+        const s = latency.summary();
+        for (const { key, value } of latencyRows) setText(value, statsText(s[key]));
+      }
     },
     destroy() {
       removeListener();

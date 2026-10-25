@@ -24,3 +24,10 @@ export const HOUSEKEEPING_INTERVAL_MS = 250;
 // room creation and joining by source IP (PRD 8).
 export const RATE_WINDOW_MS = 1000;
 export const IP_RATE_WINDOW_MS = 60000;
+
+// Proxy hops whose X-Forwarded-For entry is trusted (design M2-9). 0 means use
+// the socket address; render.yaml sets 1 for Render's proxy.
+export function trustedProxyHops(env: { RR_TRUSTED_PROXY_HOPS?: string | undefined }): number {
+  const hops = Number(env.RR_TRUSTED_PROXY_HOPS ?? '0');
+  return Number.isSafeInteger(hops) && hops >= 0 ? hops : 0;
+}

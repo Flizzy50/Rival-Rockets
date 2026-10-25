@@ -59,7 +59,18 @@ export type ControllerEvent =
       readonly cooldownRemainingMs: number;
       readonly energyShortfall: number;
     }
-  | { readonly type: 'activated'; readonly timeMs: number; readonly ability: Ability };
+  | { readonly type: 'activated'; readonly timeMs: number; readonly ability: Ability }
+  // Server-authority mode (M2): the server decides, so the phone only asks.
+  | { readonly type: 'charge-requested'; readonly timeMs: number }
+  | { readonly type: 'activate-requested'; readonly timeMs: number; readonly ability: Ability };
+
+// 'local' runs the crew rules on the phone (M1 sensor test). 'server' leaves
+// energy, cooldown, and the chosen ability to the server (design M2-11).
+export type Authority = 'local' | 'server';
+
+export interface ControllerOptions {
+  readonly authority?: Authority;
+}
 
 export interface SensorChecks {
   // A finite gamma has arrived; null-only events do not count (AC3).
@@ -98,6 +109,10 @@ export interface MotionController {
   setNeutral(neutralDeg: number): void;
   setBlocked(blocked: boolean): void;
   activate(nowMs: number): ActivationResult;
+  // Server mode: emits activate-requested for the screen to send.
+  requestActivate(nowMs: number): void;
+  // Server mode: adopt the server's selection without emitting an event.
+  syncSelection(ability: Ability): void;
   snapshot(nowMs: number): MotionSnapshot;
   drainEvents(): ControllerEvent[];
 }
@@ -106,7 +121,8 @@ function finiteOrNull(value: number | null): number | null {
   return value !== null && Number.isFinite(value) ? value : null;
 }
 
-export function createMotionController(role: Role): MotionController {
+export function createMotionController(role: Role, options: ControllerOptions = {}): MotionController {
+  const authority = options.authority ?? 'local';
   let neutralDeg: number | null = null;
   let tilt = createTiltState();
   let smoothedRelDeg = 0;
@@ -185,6 +201,10 @@ export function createMotionController(role: Role): MotionController {
       shakeCount += 1;
       shakeDetected = true;
       if (role !== 'engineer') return;
+      if (authority === 'server') {
+        events.push({ type: 'charge-requested', timeMs: sample.timeMs });
+        return;
+      }
       const charge = applyCharge(crew, sample.timeMs);
       crew = charge.state;
       if (charge.result === 'accepted') {
@@ -223,6 +243,16 @@ export function createMotionController(role: Role): MotionController {
         });
       }
       return out.result;
+    },
+
+    requestActivate(nowMs) {
+      events.push({ type: 'activate-requested', timeMs: nowMs, ability: selection.selected });
+    },
+
+    syncSelection(ability) {
+      if (selection.selected === ability && selection.pendingTarget === null) return;
+      selection = { selected: ability, pendingTarget: null, pendingSinceMs: null };
+      pendingProgress = 0;
     },
 
     snapshot(nowMs) {

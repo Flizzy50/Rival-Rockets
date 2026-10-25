@@ -1,7 +1,7 @@
 # Render Blueprint. Node's version comes from .node-version.
-# Free is fine for the M1 sensor test (no in-memory rooms yet). From M2, rooms
-# live in process memory and free instances spin down when idle, so switch to
-# a paid plan before demo day.
+# Plan stays free until the user decides otherwise. From M2, rooms live in
+# process memory and free instances spin down when idle, which drops every
+# room; switch to a paid plan before the deployed device test or demo day.
 services:
   - type: web
     name: rival-rockets
@@ -12,3 +12,11 @@ services:
     startCommand: npm start
     healthCheckPath: /healthz
     autoDeployTrigger: commit
+    envVars:
+      # Render's proxy appends one X-Forwarded-For entry; per-IP room limits
+      # read that one (design M2-9). Verify on deploy: two phones on different
+      # networks must get separate create/join budgets.
+      - key: RR_TRUSTED_PROXY_HOPS
+        value: "1"
+      # RR_CONTROL_TEST is deliberately not set here. Set RR_CONTROL_TEST=1 in
+      # the Render dashboard only for the M2 device test, then remove it.

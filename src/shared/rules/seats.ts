@@ -127,6 +127,32 @@ export function switchToWatch(s: SeatsState, participantId: string): SeatResult 
   return { ok: true, state: next.hostId === participantId ? { ...next, hostId: nextHost(next) } : next };
 }
 
+// Only a seated participant has a setup status to report (Requirement 18.3).
+export function setSeatSetup(s: SeatsState, participantId: string, status: SetupStatus): SeatResult {
+  if (!s.participants.has(participantId)) return { ok: false, reason: 'not-in-room' };
+  const seat = seatOf(s, participantId);
+  if (seat === null) return { ok: false, reason: 'not-seated' };
+  if (s.seats[seat].setup === status) return { ok: true, state: s };
+  return { ok: true, state: { ...s, seats: { ...s.seats, [seat]: { ...s.seats[seat], setup: status } } } };
+}
+
+// A disconnected occupant keeps the seat, marked held, so nobody else can take
+// it during the hold (PRD 8). Reconnecting starts a new connection, so
+// connectedSince moves to that time.
+export function setConnected(s: SeatsState, participantId: string, connected: boolean, nowMs: number): SeatsState {
+  const participant = s.participants.get(participantId);
+  if (!participant) return s;
+  const participants = new Map(s.participants);
+  participants.set(participantId, {
+    ...participant,
+    connected,
+    connectedSince: connected && !participant.connected ? nowMs : participant.connectedSince,
+  });
+  const seat = seatOf(s, participantId);
+  const seats = seat === null ? s.seats : { ...s.seats, [seat]: { ...s.seats[seat], held: !connected } };
+  return { ...s, participants, seats };
+}
+
 // Used for leave and for an expired seat hold. Unknown ids are a no-op so
 // a late sweep or duplicate leave cannot fail.
 export function removeParticipant(s: SeatsState, participantId: string): SeatsState {

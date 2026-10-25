@@ -54,6 +54,8 @@ export interface ArenaCanvas {
   draw(rocket: PreviewRocket): void;
   // M2: a server pose with its Comet chevron trail and optional ability effect.
   drawPose(pose: RocketPose, effects?: RocketEffects): void;
+  // Empty arena while no control test runs.
+  drawEmpty(): void;
   destroy(): void;
 }
 
@@ -245,6 +247,11 @@ export function createArenaCanvas(container: HTMLElement): ArenaCanvas {
     },
     drawPose(pose, effects) {
       render(pose.x, pose.y, pose.heading, true, effects);
+    },
+    drawEmpty() {
+      if (!context || !background) return;
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.drawImage(background, 0, 0);
     },
     destroy() {
       observer.disconnect();

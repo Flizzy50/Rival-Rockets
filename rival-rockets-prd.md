@@ -383,6 +383,25 @@ The voice is short, energetic, and plain: a teammate calling the play, not a man
 | Calibration done | "Neutral set" |
 | Effect active label | Ability and remaining time, e.g. "BOOST · 1.2s" |
 | Watch placeholder | "Watching starts once rooms are ready. Reload to try motion again." with a **Back** button |
+| **Rooms and control test (Milestone 2, proposed until approved)** | |
+| Join name rule | "Use 1–16 characters, no line breaks." |
+| Join as watcher | "Just watch" |
+| Room full | "This room is full. Watch instead?" with **Watch instead** |
+| Seat just taken | "That seat was just taken. Pick another." |
+| Too many tries | "Too many tries. Wait a minute, then try again." |
+| Seat released | "Your seat was released. Join the room again." |
+| Share link copied | "Link copied" |
+| Lobby slot states | "Taken" / "Calibrated" / "Disconnected" |
+| Control test label | "CONTROL TEST · not a match" |
+| Control test off | "Control test is off on this server." |
+| Control test waiting | "Waiting for Comet Engineer to calibrate" (start-blocked pattern) |
+| Nova seat note | "This test flies the Comet rocket only." |
+| Crew paused | "Paused · waiting for the crew" |
+| Reconnecting | "Reconnecting…" |
+| Can't connect | "Can't reach the game. Reload and try again." |
+| Connection lost | "Connection lost. Create or join a new room." |
+| Room expired | "This room expired. Create or join a new room." |
+| Server restarted | "The game restarted. Create or join a new room." |
 
 ### 7.10 Accessibility
 

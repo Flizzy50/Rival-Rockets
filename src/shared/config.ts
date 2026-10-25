@@ -68,6 +68,9 @@ export const ROOM_INACTIVITY_MS = 1800000;
 // Server rates (PRD 9); tune from measured behavior.
 export const SIMULATION_HZ = 30;
 export const BROADCAST_HZ = 18;
+// Derived so the fixed step and broadcast spacing follow the rates above.
+export const STEP_MS = 1000 / SIMULATION_HZ;
+export const BROADCAST_INTERVAL_MS = 1000 / BROADCAST_HZ;
 
 // Input and request limits (PRD 8). Client steering stays below the server
 // cap so normal jitter never trips the limiter.
@@ -100,6 +103,13 @@ export const START_LANES = {
 // M2: about two broadcast intervals, so one late snapshot does not stall
 // interpolation.
 export const INTERPOLATION_DELAY_MS = 100;
+// M2: about 1.8 s of 18 Hz snapshots; enough for the clock-offset estimate.
+export const SNAPSHOT_BUFFER_SIZE = 32;
+// M2: spacing between reconnect attempts. Attempts stop once SEAT_HOLD_MS has
+// passed, because the server has reopened the seat by then.
+export const RECONNECT_RETRY_MS = 1000;
+// M2: how long a room request waits for its reply before failing.
+export const REQUEST_TIMEOUT_MS = 5000;
 
 // Latency diagnostics (PRD 2). Window size and pending timeout are M2 values;
 // the 150 ms p95 is the PRD target to measure, not a result.

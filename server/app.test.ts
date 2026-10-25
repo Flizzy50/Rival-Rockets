@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createApp } from './app.js';
+import { contentSecurityPolicy, createApp } from './app.js';
 
 let fixtureDir: string;
 let server: http.Server;
@@ -59,6 +59,11 @@ describe('static server', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/javascript/);
     expect(res.headers.get('cache-control')).toContain('immutable');
+  });
+
+  it('lists the wss form of each allowed origin in connect-src (design M2-8)', () => {
+    const csp = contentSecurityPolicy(new Set(['https://rr.onrender.com', 'http://localhost:3000']));
+    expect(csp).toContain("connect-src 'self' wss://rr.onrender.com ws://localhost:3000;");
   });
 
   it('returns 404 for unknown paths', async () => {

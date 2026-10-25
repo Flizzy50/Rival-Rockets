@@ -33,6 +33,12 @@ export const TEAM_COMET = {
   label: 'COMET',
 } as const;
 
+export const TEAM_NOVA = {
+  color: COLOR_TOKENS['--team-nova'],
+  glyph: '●',
+  label: 'NOVA',
+} as const;
+
 export const FONT_DISPLAY = "'Space Grotesk', system-ui, sans-serif";
 export const FONT_BODY = "'Inter', system-ui, sans-serif";
 

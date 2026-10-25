@@ -57,6 +57,11 @@ export function cometGlyphIcon(): SVGSVGElement {
   return svg('icon-glyph', shape('path', { ...FILLED, d: 'M12 4l9 16H3z' }));
 }
 
+// Team Nova glyph (●).
+export function novaGlyphIcon(): SVGSVGElement {
+  return svg('icon-glyph', shape('circle', { ...FILLED, cx: '12', cy: '12', r: '8' }));
+}
+
 export function checkIcon(): SVGSVGElement {
   return svg('icon-check', shape('path', { ...STROKED, 'stroke-width': '3', d: 'M5 12l5 5 9-10' }));
 }

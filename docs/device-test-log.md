@@ -21,3 +21,28 @@ Run each on iPhone (Safari) and Android (Chrome), over the LAN HTTPS URL and the
 - [ ] Rotation overlay: landscape shows "Turn your phone upright"; steering goes neutral.
 - [ ] Background / foreground: returning to the tab resumes readings without a jump.
 - [ ] Wake lock: the screen stays on during the test.
+
+# M2 device test log (shared control)
+
+Agents did not run any of these checks; they need two physical phones and the deployed site. Do not record names, room codes, tokens, IP addresses, device identifiers, or raw sensor samples. Paste latency numbers from the debug panel's Copy readings.
+
+| Build / revision | Date | Phone A (model, OS, browser) | Phone B (model, OS, browser) | Network (no identifying data) | Scenario | Observed result | Steer p95 send→ack | Charge p95 send→ack | Ability p95 send→ack | Render delay p95 | Follow-up |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| | | iPhone, iOS, Safari | Android, Chrome | | | | ms | ms | ms | ms | |
+
+Target for comparison: p95 ≤ 150 ms (PRD 2). It's a target to measure, not a result.
+
+## M2 scenario checklist
+
+- [ ] Create a room on phone A, join from phone B by QR and by typed code.
+- [ ] Claim Comet Pilot on one phone and Comet Engineer on the other; a second claim of the same seat is refused with the PRD copy.
+- [ ] Both phones complete motion setup; the control test starts by itself and shows "CONTROL TEST · not a match".
+- [ ] Pilot tilt turns the rocket on both screens in the same direction; neutral flies straight.
+- [ ] Engineer shake adds 25 on both screens; continuous shaking adds at most one charge per second; shaking does not switch the ability (AC4).
+- [ ] Engineer selection and Activate: Boost speeds up the rocket on both screens; Shield shows on both; failed activations show the reason and spend nothing (AC5).
+- [ ] Watch from a third device or browser tab shows the same rocket without a seat or motion prompt.
+- [ ] Rotate a phone: overlay appears, Pilot steering goes neutral, Engineer selection freezes.
+- [ ] Turn off Wi-Fi on one phone for under 15 s: the rocket freezes, then resumes after reconnect with the same seat. Over 15 s: the seat reopens.
+- [ ] Reload one phone within 15 s: the seat is reclaimed from session storage; motion setup runs again.
+- [ ] On the deployed site, copy the debug panel summary after at least 2 minutes of flying: p95 send-to-ack for steer, charge, and ability, and render delay p95, against the 150 ms target.
+- [ ] Per-IP limits on the deployed site behave per device (checks `RR_TRUSTED_PROXY_HOPS`).

@@ -632,7 +632,7 @@ Each property is tested with one fast-check property test of at least 100 runs a
 
 ### Property 23: Render time never runs ahead of received data
 
-*For any* sequence of snapshot arrivals with nondecreasing session times and local receipt times, `estimateRenderTime` at local time `n` is at most the newest snapshot's session time plus `(n − its receipt time)` minus `INTERPOLATION_DELAY_MS`.
+*For any* clock offset `C` and any snapshot arrivals with increasing session times whose local receipt time is `sessionMs + C + d` for a nonnegative network delay `d`, `estimateRenderTime` at local time `n` is at most the server's true session time `n − C` minus `INTERPOLATION_DELAY_MS`. (The earlier wording bounded it by the newest snapshot's own offset, which the minimum-offset estimate cannot satisfy whenever the newest snapshot was not the least delayed.)
 
 **Validates: Requirements 20.1**
 

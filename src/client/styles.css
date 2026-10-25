@@ -194,6 +194,237 @@ h1:focus {
   font-size: var(--size-body-rem);
 }
 
+/* ---------- Rooms (M2): home, join, lobby, error ---------- */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-link {
+  align-self: flex-start;
+}
+
+.wordmark {
+  margin: 2rem 0 0;
+  color: var(--team-comet);
+  font-family: var(--font-display);
+  font-size: calc(var(--size-title-rem) * 1.5);
+  font-weight: var(--weight-title);
+  letter-spacing: 0.02em;
+}
+
+.pitch {
+  font-family: var(--font-display);
+  font-weight: var(--weight-button);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.field label,
+.check-row label {
+  font-size: var(--size-body-rem);
+  font-weight: var(--weight-button);
+}
+
+.input {
+  min-height: var(--touch-min);
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--line-wall);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--size-body-rem);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+/* PRD 7.5: room code 48 / 700 with 0.1em letter-spacing. */
+.input-code,
+.room-code {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: var(--weight-title);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--size-body-rem);
+}
+
+.field-error:empty {
+  display: none;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--touch-min);
+}
+
+.check-row input {
+  width: 1.5rem;
+  height: 1.5rem;
+  accent-color: var(--team-comet);
+}
+
+.room-share {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.room-code {
+  margin: 0;
+}
+
+.qr {
+  width: min(12rem, 60vw);
+  height: auto;
+}
+
+/* Dark modules on a light field: what phone scanners expect. */
+.qr-bg {
+  fill: var(--text-primary);
+}
+
+.qr-fg {
+  fill: var(--bg-space);
+}
+
+.lobby-status {
+  justify-content: center;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.team-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--touch-gap);
+}
+
+.team-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--touch-gap);
+}
+
+.team-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--size-body-rem);
+  font-weight: var(--weight-title);
+}
+
+.team-comet .team-heading,
+.team-tag.team-comet {
+  color: var(--team-comet);
+}
+
+.team-nova .team-heading,
+.team-tag.team-nova {
+  color: var(--team-nova);
+}
+
+.seat-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-height: 5.5rem;
+  padding: 0.75rem;
+  border: 2px solid var(--team-comet);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.seat-card.team-nova {
+  border-color: var(--team-nova);
+}
+
+.seat-card .icon {
+  color: var(--team-comet);
+}
+
+.seat-card.team-nova .icon {
+  color: var(--team-nova);
+}
+
+/* Open slots are dashed (PRD 7.7); taken ones are solid. */
+.seat-card[data-tone='open'] {
+  border-style: dashed;
+}
+
+.seat-card:disabled {
+  cursor: default;
+}
+
+.seat-card.is-mine {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.seat-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.seat-role {
+  font-weight: var(--weight-button);
+}
+
+.seat-name {
+  overflow-wrap: anywhere;
+}
+
+.seat-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+  font-size: var(--size-caption-rem);
+}
+
+.seat-status .icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.seat-card[data-tone='ok'] .seat-status {
+  color: var(--success);
+}
+
+.seat-card[data-tone='warn'] .seat-status {
+  color: var(--warning);
+}
+
 /* ---------- Setup ---------- */
 
 .steps {
@@ -812,6 +1043,93 @@ h1:focus {
 .activate.flash,
 .activate.refill {
   animation: flash var(--event-burst-max) ease-out;
+}
+
+/* ---------- Control and watch screens (M2) ---------- */
+
+.control-strip {
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px dashed var(--warning);
+  border-radius: 8px;
+  color: var(--warning);
+  font-family: var(--font-display);
+  font-size: var(--size-caption);
+  font-weight: var(--weight-title);
+  text-align: center;
+}
+
+.arena-message {
+  position: absolute;
+  inset: auto 8px 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: var(--size-body);
+  font-weight: var(--weight-button);
+  text-align: center;
+}
+
+.crew-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-family: var(--font-display);
+  font-size: var(--size-body);
+  font-weight: var(--weight-title);
+}
+
+.crew-ability {
+  color: var(--team-comet);
+}
+
+.crew-state {
+  flex: 1;
+}
+
+.crew-energy-label {
+  color: var(--text-secondary);
+  font-size: var(--size-caption);
+}
+
+.nova-panel {
+  text-align: center;
+}
+
+.room-code-small {
+  font-family: var(--font-display);
+  font-size: var(--size-body);
+  font-weight: var(--weight-title);
+  letter-spacing: 0.1em;
+}
+
+.watch-seats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px var(--touch-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--size-caption);
+}
+
+.watch-seats li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.watch-seat-name {
+  overflow-wrap: anywhere;
+}
+
+.watch-seat-state {
+  color: var(--text-secondary);
 }
 
 /* ---------- One-shot feedback ---------- */

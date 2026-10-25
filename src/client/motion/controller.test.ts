@@ -165,3 +165,38 @@ describe('motion controller sensor checks (AC3)', () => {
     expect(engineer.snapshot(400).shakeCount).toBe(1);
   });
 });
+
+describe('motion controller, server authority (Requirements 19.2-19.4, 19.7)', () => {
+  it('turns a shake into charge-requested and leaves local crew state alone', () => {
+    const c = createMotionController('engineer', { authority: 'server' });
+    const energyBefore = c.snapshot(0).energy;
+    for (let t = 0; t <= 600; t += STEP_MS) motion(c, t, t % 200 < 100 ? 25 : 0);
+    const events = c.drainEvents();
+    expect(ofType(events, 'charge-requested')).toHaveLength(1);
+    expect(ofType(events, 'charge-accepted')).toHaveLength(0);
+    expect(c.snapshot(600).energy).toBe(energyBefore);
+  });
+
+  it('emits activate-requested with the local selection and spends nothing', () => {
+    const c = createMotionController('engineer', { authority: 'server' });
+    c.requestActivate(5);
+    expect(c.drainEvents()).toEqual([{ type: 'activate-requested', timeMs: 5, ability: 'boost' }]);
+    expect(c.snapshot(5).ability.phase).toBe('ready');
+  });
+
+  it('adopts the server selection without an event', () => {
+    const c = createMotionController('engineer', { authority: 'server' });
+    c.syncSelection('shield');
+    expect(c.snapshot(0).selected).toBe('shield');
+    expect(c.drainEvents()).toEqual([]);
+  });
+
+  it('sends no selection changes and neutral steering while blocked', () => {
+    const c = createMotionController('engineer', { authority: 'server' });
+    c.setNeutral(0);
+    c.setBlocked(true);
+    for (let t = 0; t <= 1000; t += STEP_MS) orientation(c, t, 25);
+    expect(ofType(c.drainEvents(), 'selection-changed')).toHaveLength(0);
+    expect(c.snapshot(1000).steering).toBe(0);
+  });
+});
